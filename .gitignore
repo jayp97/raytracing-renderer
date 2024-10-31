@@ -1,0 +1,34 @@
+# Ignore object files, compiled binaries, and other build artifacts
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.lib
+*.dll
+bin/
+obj/
+
+# Ignore log files and other temporary files
+*.log
+*.tmp
+*.swp
+
+# Ignore VSCode settings
+.vscode/
+
+# Ignore MacOS system files
+.DS_Store
+
+# Ignore Makefile-generated files
+Makefile.in
+
+# Ignore CMake generated files (if using CMake in the future)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CMakeLists.txt.user
+
+# Ignore image outputs (optional)
+images/
