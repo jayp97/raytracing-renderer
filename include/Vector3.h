@@ -18,6 +18,7 @@ public:
     // Basic Operations
     Vector3 operator+(const Vector3 &other) const;
     Vector3 operator-(const Vector3 &other) const;
+    bool operator==(const Vector3 &other) const;
     Vector3 operator*(float scalar) const;
     Vector3 operator/(float scalar) const;
 
