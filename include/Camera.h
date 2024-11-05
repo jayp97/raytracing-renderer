@@ -10,7 +10,7 @@ public:
     Vector3 position;
     Vector3 forward;
     Vector3 up;
-    Vector3 down;
+    Vector3 right;
     float fov;
     float aspectRatio;
 
