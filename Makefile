@@ -8,30 +8,30 @@ TEST_DIR = test
 OBJ_DIR = obj
 BIN_DIR = bin
 
-# List of source and test files
-SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
+# List of source files and object files (excluding main.cpp for tests)
+SOURCES = $(filter-out $(SRC_DIR)/main.cpp, $(wildcard $(SRC_DIR)/*.cpp))
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
-TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
-TEST_OBJECTS = $(TEST_SOURCES:$(TEST_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+MAIN_OBJECT = $(OBJ_DIR)/main.o
+TEST_SOURCES = $(filter-out $(SRC_DIR)/main.cpp, $(SOURCES)) $(TEST_DIR)/test_camera.cpp $(TEST_DIR)/catch_amalgamated.cpp
+TEST_OBJECTS = $(TEST_SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+
+# Executable targets
 TARGET = $(BIN_DIR)/raytracer
-TEST_TARGET = $(BIN_DIR)/test_ray
+TEST_TARGET_CAMERA = $(BIN_DIR)/test_camera
 
 # Default target to build the main executable
 all: $(TARGET)
 
-# Link object files to create the final executable
-$(TARGET): $(OBJECTS) | $(BIN_DIR)
+# Link object files to create the main executable
+$(TARGET): $(OBJECTS) $(MAIN_OBJECT) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-# Target to build and run tests
-test: $(TEST_TARGET)
-	./$(TEST_TARGET)
+# Build and run the test_camera executable, excluding main.cpp
+test_camera: $(OBJECTS) $(OBJ_DIR)/test_camera.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CAMERA) $(OBJECTS) $(OBJ_DIR)/test_camera.o $(OBJ_DIR)/catch_amalgamated.o
+	./$(TEST_TARGET_CAMERA)
 
-# Link object files to create the test executable
-$(TEST_TARGET): $(OBJECTS) $(TEST_OBJECTS) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^
-
-# Compile each .cpp file in src to an object file
+# Compile each .cpp file in src to an object file (except main.cpp)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 

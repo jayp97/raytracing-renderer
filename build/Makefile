@@ -156,17 +156,70 @@ test_ray/fast:
 .PHONY : test_ray/fast
 
 #=============================================================================
-# Target rules for targets named test
+# Target rules for targets named test_camera
 
 # Build rule for target.
-test: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test
-.PHONY : test
+test_camera: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_camera
+.PHONY : test_camera
 
 # fast build rule for target.
-test/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test.dir/build.make CMakeFiles/test.dir/build
-.PHONY : test/fast
+test_camera/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_camera.dir/build.make CMakeFiles/test_camera.dir/build
+.PHONY : test_camera/fast
+
+#=============================================================================
+# Target rules for targets named run_test_ray
+
+# Build rule for target.
+run_test_ray: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run_test_ray
+.PHONY : run_test_ray
+
+# fast build rule for target.
+run_test_ray/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_test_ray.dir/build.make CMakeFiles/run_test_ray.dir/build
+.PHONY : run_test_ray/fast
+
+#=============================================================================
+# Target rules for targets named run_test_camera
+
+# Build rule for target.
+run_test_camera: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run_test_camera
+.PHONY : run_test_camera
+
+# fast build rule for target.
+run_test_camera/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_test_camera.dir/build.make CMakeFiles/run_test_camera.dir/build
+.PHONY : run_test_camera/fast
+
+src/Camera.o: src/Camera.cpp.o
+.PHONY : src/Camera.o
+
+# target to build an object file
+src/Camera.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raytracer_lib.dir/build.make CMakeFiles/raytracer_lib.dir/src/Camera.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raytracer.dir/build.make CMakeFiles/raytracer.dir/src/Camera.cpp.o
+.PHONY : src/Camera.cpp.o
+
+src/Camera.i: src/Camera.cpp.i
+.PHONY : src/Camera.i
+
+# target to preprocess a source file
+src/Camera.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raytracer_lib.dir/build.make CMakeFiles/raytracer_lib.dir/src/Camera.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raytracer.dir/build.make CMakeFiles/raytracer.dir/src/Camera.cpp.i
+.PHONY : src/Camera.cpp.i
+
+src/Camera.s: src/Camera.cpp.s
+.PHONY : src/Camera.s
+
+# target to generate assembly for a file
+src/Camera.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raytracer_lib.dir/build.make CMakeFiles/raytracer_lib.dir/src/Camera.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/raytracer.dir/build.make CMakeFiles/raytracer.dir/src/Camera.cpp.s
+.PHONY : src/Camera.cpp.s
 
 src/Ray.o: src/Ray.cpp.o
 .PHONY : src/Ray.o
@@ -255,6 +308,7 @@ test/catch_amalgamated.o: test/catch_amalgamated.cpp.o
 # target to build an object file
 test/catch_amalgamated.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_ray.dir/build.make CMakeFiles/test_ray.dir/test/catch_amalgamated.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_camera.dir/build.make CMakeFiles/test_camera.dir/test/catch_amalgamated.cpp.o
 .PHONY : test/catch_amalgamated.cpp.o
 
 test/catch_amalgamated.i: test/catch_amalgamated.cpp.i
@@ -263,6 +317,7 @@ test/catch_amalgamated.i: test/catch_amalgamated.cpp.i
 # target to preprocess a source file
 test/catch_amalgamated.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_ray.dir/build.make CMakeFiles/test_ray.dir/test/catch_amalgamated.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_camera.dir/build.make CMakeFiles/test_camera.dir/test/catch_amalgamated.cpp.i
 .PHONY : test/catch_amalgamated.cpp.i
 
 test/catch_amalgamated.s: test/catch_amalgamated.cpp.s
@@ -271,7 +326,32 @@ test/catch_amalgamated.s: test/catch_amalgamated.cpp.s
 # target to generate assembly for a file
 test/catch_amalgamated.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_ray.dir/build.make CMakeFiles/test_ray.dir/test/catch_amalgamated.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_camera.dir/build.make CMakeFiles/test_camera.dir/test/catch_amalgamated.cpp.s
 .PHONY : test/catch_amalgamated.cpp.s
+
+test/test_camera.o: test/test_camera.cpp.o
+.PHONY : test/test_camera.o
+
+# target to build an object file
+test/test_camera.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_camera.dir/build.make CMakeFiles/test_camera.dir/test/test_camera.cpp.o
+.PHONY : test/test_camera.cpp.o
+
+test/test_camera.i: test/test_camera.cpp.i
+.PHONY : test/test_camera.i
+
+# target to preprocess a source file
+test/test_camera.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_camera.dir/build.make CMakeFiles/test_camera.dir/test/test_camera.cpp.i
+.PHONY : test/test_camera.cpp.i
+
+test/test_camera.s: test/test_camera.cpp.s
+.PHONY : test/test_camera.s
+
+# target to generate assembly for a file
+test/test_camera.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_camera.dir/build.make CMakeFiles/test_camera.dir/test/test_camera.cpp.s
+.PHONY : test/test_camera.cpp.s
 
 test/test_ray.o: test/test_ray.cpp.o
 .PHONY : test/test_ray.o
@@ -305,10 +385,15 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
-	@echo "... test"
+	@echo "... run_test_camera"
+	@echo "... run_test_ray"
 	@echo "... raytracer"
 	@echo "... raytracer_lib"
+	@echo "... test_camera"
 	@echo "... test_ray"
+	@echo "... src/Camera.o"
+	@echo "... src/Camera.i"
+	@echo "... src/Camera.s"
 	@echo "... src/Ray.o"
 	@echo "... src/Ray.i"
 	@echo "... src/Ray.s"
@@ -321,6 +406,9 @@ help:
 	@echo "... test/catch_amalgamated.o"
 	@echo "... test/catch_amalgamated.i"
 	@echo "... test/catch_amalgamated.s"
+	@echo "... test/test_camera.o"
+	@echo "... test/test_camera.i"
+	@echo "... test/test_camera.s"
 	@echo "... test/test_ray.o"
 	@echo "... test/test_ray.i"
 	@echo "... test/test_ray.s"

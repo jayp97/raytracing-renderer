@@ -15,10 +15,13 @@ add_library(raytracer_lib ${SOURCES})
 add_executable(raytracer ${SOURCES})
 target_link_libraries(raytracer PRIVATE raytracer_lib)
 
-# Set up the Catch2 testing executable
-file(GLOB TEST_SOURCES "test/*.cpp")
-add_executable(test_ray ${TEST_SOURCES} test/catch_amalgamated.cpp)
+# Set up separate Catch2 testing executables for each test file
+add_executable(test_ray test/test_ray.cpp test/catch_amalgamated.cpp)
 target_link_libraries(test_ray PRIVATE raytracer_lib)
 
-# Add a custom target for "make test" to run test_ray
-add_custom_target(test COMMAND test_ray DEPENDS test_ray)
+add_executable(test_camera test/test_camera.cpp test/catch_amalgamated.cpp)
+target_link_libraries(test_camera PRIVATE raytracer_lib)
+
+# Add custom targets for each test executable
+add_custom_target(run_test_ray COMMAND test_ray DEPENDS test_ray)
+add_custom_target(run_test_camera COMMAND test_camera DEPENDS test_camera)
