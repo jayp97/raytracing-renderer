@@ -43,11 +43,17 @@ Vector3 Vector3::cross(const Vector3 &other) const
         x * other.y - y * other.x);
 }
 
-// Normalize
+// Normalise
 Vector3 Vector3::normalise() const
 {
     float length = std::sqrt(x * x + y * y + z * z);
     return (*this) / length;
+}
+
+// Dot product
+float Vector3::dot(const Vector3 &other) const
+{ // Add this implementation
+    return x * other.x + y * other.y + z * other.z;
 }
 
 // Debug print method
