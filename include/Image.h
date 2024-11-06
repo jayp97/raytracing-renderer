@@ -17,6 +17,7 @@ public:
     Image(int width, int height);
 
     void setPixel(int x, int y, const Color &color);
+    Color getPixel(int x, int y) const; // New method to get pixel color
     bool saveAsPPM(const std::string &filename) const;
 
 private:

@@ -11,6 +11,15 @@ void Image::setPixel(int x, int y, const Color &color)
     }
 }
 
+Color Image::getPixel(int x, int y) const
+{
+    if (x >= 0 && x < width && y >= 0 && y < height)
+    {
+        return pixels[y * width + x];
+    }
+    return Color(); // Return default black color if out of bounds
+}
+
 bool Image::saveAsPPM(const std::string &filename) const
 {
     std::ofstream file(filename);
