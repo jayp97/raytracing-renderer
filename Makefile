@@ -26,6 +26,8 @@ TEST_TARGET_SPHERE = $(BIN_DIR)/test_sphere
 TEST_TARGET_RAY = $(BIN_DIR)/test_ray
 TEST_TARGET_TRIANGLE = $(BIN_DIR)/test_triangle
 TEST_TARGET_CYLINDER = $(BIN_DIR)/test_cylinder
+TEST_TARGET_SCENE_LOADER = $(BIN_DIR)/test_scene_loader
+
 
 # Default target to build the main executable
 all: $(TARGET)
@@ -58,6 +60,11 @@ test_triangle: $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamate
 test_cylinder: $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CYLINDER) $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o
 	./$(TEST_TARGET_CYLINDER)
+
+# Rule for compiling and running the test_scene_loader executable
+test_scene_loader: $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SCENE_LOADER) $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_amalgamated.o
+	./$(TEST_TARGET_SCENE_LOADER)
 
 
 # Compile each .cpp file in src to an object file (except main.cpp)

@@ -7,19 +7,22 @@
 class Camera
 {
 public:
+    // Default constructor
+    Camera() : position(0.0f, 0.0f, 0.0f), forward(0.0f, 0.0f, -1.0f), up(0.0f, 1.0f, 0.0f),
+               right(1.0f, 0.0f, 0.0f), fov(45.0f), aspectRatio(1.0f), exposure(0.1f) {}
+
+    // Constructor with parameters
+    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure);
+
+    // Generate a ray from the camera through a viewport pixel
+    Ray generateRay(float pixelX, float pixelY, int imageWidth, int imageHeight) const;
+
+    // Camera attributes
     Vector3 position;
-    Vector3 forward;
-    Vector3 up;
-    Vector3 right;
+    Vector3 forward, up, right;
     float fov;
     float aspectRatio;
     float exposure;
-
-    // Constructor
-    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure);
-
-    // Method to generate a ray for a given pixel
-    Ray generateRay(float pixelX, float pixelY, int imageWidth, int imageHeight) const;
 };
 
-#endif
+#endif // CAMERA_H
