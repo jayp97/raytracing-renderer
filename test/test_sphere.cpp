@@ -13,8 +13,9 @@ bool areFloatsEqual(float a, float b, float tolerance)
 
 TEST_CASE("Sphere Intersection - Ray Hits Sphere", "[SPHERE]")
 {
+    Material defaultMaterial;
     // Sphere centered at (0, 0, -5) with radius 1
-    Sphere sphere(Vector3(0, 0, -5), 1.0f);
+    Sphere sphere(Vector3(0, 0, -5), 1.0f, defaultMaterial);
     Ray ray(Vector3(0, 0, 0), Vector3(0, 0, -1));
 
     float t;
@@ -26,8 +27,9 @@ TEST_CASE("Sphere Intersection - Ray Hits Sphere", "[SPHERE]")
 
 TEST_CASE("Sphere Intersection - Ray Misses Sphere", "[SPHERE]")
 {
+    Material defaultMaterial;
     // Sphere centered at (0, 0, -5) with radius 1
-    Sphere sphere(Vector3(0, 0, -5), 1.0f);
+    Sphere sphere(Vector3(0, 0, -5), 1.0f, defaultMaterial);
     Ray ray(Vector3(0, 0, 0), Vector3(1, 0, 0)); // Ray in x-direction, away from sphere
 
     float t;
@@ -36,8 +38,9 @@ TEST_CASE("Sphere Intersection - Ray Misses Sphere", "[SPHERE]")
 
 TEST_CASE("Sphere Intersection - Ray Starts Inside Sphere", "[SPHERE]")
 {
+    Material defaultMaterial;
     // Sphere centered at (0, 0, 0) with radius 2
-    Sphere sphere(Vector3(0, 0, 0), 2.0f);
+    Sphere sphere(Vector3(0, 0, 0), 2.0f, defaultMaterial);
     Ray ray(Vector3(0, 0, 0), Vector3(0, 0, 1)); // Ray originates at sphere center
 
     float t;
@@ -49,7 +52,8 @@ TEST_CASE("Sphere Intersection - Ray Starts Inside Sphere", "[SPHERE]")
 
 TEST_CASE("Sphere Intersection - Tangent Ray", "[SPHERE]")
 {
-    Sphere sphere(Vector3(0, 1, -5), 1.0f);
+    Material defaultMaterial;
+    Sphere sphere(Vector3(0, 1, -5), 1.0f, defaultMaterial);
     Ray ray(Vector3(0, 0, 0), Vector3(0, 1, -5).normalise());
 
     float t;

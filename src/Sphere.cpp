@@ -1,5 +1,5 @@
 #include "Sphere.h"
-#include <cmath> // Correcting the inclusion of cmath
+#include <cmath> // For sqrt
 
 bool Sphere::intersect(const Ray &ray, float &t) const
 {
@@ -16,10 +16,11 @@ bool Sphere::intersect(const Ray &ray, float &t) const
     }
     else
     {
-        float sqrtDiscriminant = sqrt(discriminant);
+        float sqrtDiscriminant = std::sqrt(discriminant);
         float t1 = (-b - sqrtDiscriminant) / (2.0f * a);
         float t2 = (-b + sqrtDiscriminant) / (2.0f * a);
 
+        // Check for the nearest positive intersection point
         if (t1 > 0.001f)
         {
             t = t1;

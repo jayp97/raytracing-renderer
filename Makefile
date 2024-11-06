@@ -28,6 +28,7 @@ TEST_TARGET_TRIANGLE = $(BIN_DIR)/test_triangle
 TEST_TARGET_CYLINDER = $(BIN_DIR)/test_cylinder
 TEST_TARGET_SCENE_LOADER = $(BIN_DIR)/test_scene_loader
 TEST_TARGET_RAYTRACER = $(BIN_DIR)/test_raytracer  
+TEST_TARGET_BINARY_RENDERING_MODE = $(BIN_DIR)/test_binary_rendering_mode
 # Default target to build the main executable
 all: $(TARGET)
 
@@ -69,6 +70,13 @@ test_scene_loader: $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_am
 test_raytracer: $(OBJECTS) $(OBJ_DIR)/test_raytracer.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_RAYTRACER) $(OBJECTS) $(OBJ_DIR)/test_raytracer.o $(OBJ_DIR)/catch_amalgamated.o
 	./$(TEST_TARGET_RAYTRACER)
+
+# Compile and run the test_raytracer executable
+test_binary_rendering_mode: $(OBJECTS) $(OBJ_DIR)/test_binary_rendering_mode.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_BINARY_RENDERING_MODE) $(OBJECTS) $(OBJ_DIR)/test_binary_rendering_mode.o $(OBJ_DIR)/catch_amalgamated.o
+	./$(TEST_TARGET_BINARY_RENDERING_MODE)
+
+
 
 # Compile each .cpp file in src to an object file (except main.cpp)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)

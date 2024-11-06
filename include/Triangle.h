@@ -3,18 +3,23 @@
 
 #include "Vector3.h"
 #include "Ray.h"
+#include "Material.h" // Include Material
 
 class Triangle
 {
 public:
-    Vector3 v0, v1, v2; // Triangle vertices
+    // Constructor with material
+    Triangle(const Vector3 &vertex0, const Vector3 &vertex1, const Vector3 &vertex2, const Material &m)
+        : v0(vertex0), v1(vertex1), v2(vertex2), material(m) {}
 
-    // Constructor
-    Triangle(const Vector3 &vertex0, const Vector3 &vertex1, const Vector3 &vertex2)
-        : v0(vertex0), v1(vertex1), v2(vertex2) {}
-
-    // Intersection method using Möller-Trumbore algoritm
+    // Intersection method using Möller-Trumbore algorithm
     bool intersect(const Ray &ray, float &t, float &u, float &v) const;
+
+    // Triangle vertices
+    Vector3 v0, v1, v2;
+
+    // Material property for rendering
+    Material material;
 };
 
-#endif
+#endif // TRIANGLE_H

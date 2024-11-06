@@ -2,8 +2,9 @@
 #include <cmath>
 #include <limits> // For std::numeric_limits
 
-Cylinder::Cylinder(const Vector3 &c, const Vector3 &a, float r, float h)
-    : center(c), axis(a.normalise()), radius(r), height(h) {}
+// Updated constructor with Material parameter
+Cylinder::Cylinder(const Vector3 &c, const Vector3 &a, float r, float h, const Material &m)
+    : center(c), axis(a.normalise()), radius(r), height(h), material(m) {}
 
 // Method to check ray-cylinder intersection
 bool Cylinder::intersect(const Ray &ray, float &t) const

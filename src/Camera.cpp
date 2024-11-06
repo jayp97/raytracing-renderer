@@ -2,7 +2,7 @@
 #include <cmath>
 
 Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure)
-    : position(position), exposure(exposure)
+    : position(position), exposure(exposure), width(width), height(height)
 {
     // Calculate aspect ratio from width and height
     aspectRatio = static_cast<float>(width) / height;
@@ -17,14 +17,14 @@ Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up
 }
 
 // Generate a ray from the camera through the viewport at the specified pixel coordinates
-Ray Camera::generateRay(float pixelX, float pixelY, int imageWidth, int imageHeight) const
+Ray Camera::generateRay(float pixelX, float pixelY) const
 {
     // Calculate the viewport scaling based on the FOV
     float scale = std::tan(fov / 2.0f);
 
     // Normalize pixel coordinates to the range [-1, 1] for viewport space
-    float x = (2 * (pixelX + 0.5f) / imageWidth - 1) * aspectRatio * scale;
-    float y = (1 - 2 * (pixelY + 0.5f) / imageHeight) * scale;
+    float x = (2 * (pixelX + 0.5f) / width - 1) * aspectRatio * scale;
+    float y = (1 - 2 * (pixelY + 0.5f) / height) * scale;
 
     // Calculate the direction of the ray through the pixel
     Vector3 direction = (forward + right * x + up * y).normalise();
