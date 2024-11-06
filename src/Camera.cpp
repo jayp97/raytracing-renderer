@@ -1,15 +1,18 @@
 #include "Camera.h"
 #include <cmath>
 
-Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, float aspectRatio)
-    : position(position), aspectRatio(aspectRatio)
+Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure)
+    : position(position), exposure(exposure)
 {
+    // Calculate aspect ratio from width and height
+    aspectRatio = static_cast<float>(width) / height;
+
     // Calculate the forward, right, and up directions based on lookAt and up
     forward = (lookAt - position).normalise();
     right = forward.cross(up).normalise();
     this->up = right.cross(forward).normalise();
 
-    // Convert the field of view to radians and store it
+    // Convert the field of view to radians
     this->fov = (fov * M_PI) / 180.0f;
 }
 

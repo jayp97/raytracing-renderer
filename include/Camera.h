@@ -13,9 +13,10 @@ public:
     Vector3 right;
     float fov;
     float aspectRatio;
+    float exposure;
 
     // Constructor
-    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, float aspectRatio);
+    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure);
 
     // Method to generate a ray for a given pixel
     Ray generateRay(float pixelX, float pixelY, int imageWidth, int imageHeight) const;
