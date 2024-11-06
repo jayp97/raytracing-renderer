@@ -36,4 +36,10 @@ public:
     void print() const;
 };
 
+// Scalar * Vector3 multiplication (global operator overload)
+inline Vector3 operator*(float scalar, const Vector3 &v)
+{
+    return Vector3(v.x * scalar, v.y * scalar, v.z * scalar);
+}
+
 #endif

@@ -27,12 +27,17 @@ target_link_libraries(test_camera PRIVATE raytracer_lib)
 add_executable(test_sphere test/test_sphere.cpp test/catch_amalgamated.cpp)
 target_link_libraries(test_sphere PRIVATE raytracer_lib)
 
-#test executable for sphere
+#test executable for triangle
 add_executable(test_triangle test/test_triangle.cpp test/catch_amalgamated.cpp)
 target_link_libraries(test_triangle PRIVATE raytracer_lib)
+
+#test executable for cylinder
+add_executable(test_cylinder test/test_cylinder.cpp test/catch_amalgamated.cpp)
+target_link_libraries(test_cylinder PRIVATE raytracer_lib)
 
 # Add custom targets for each test executable
 add_custom_target(run_test_ray COMMAND test_ray DEPENDS test_ray)
 add_custom_target(run_test_camera COMMAND test_camera DEPENDS test_camera)
 add_custom_target(run_test_sphere COMMAND test_sphere DEPENDS test_sphere)
 add_custom_target(run_test_triangle COMMAND test_triangle DEPENDS test_triangle)
+add_custom_target(run_test_cylinder COMMAND test_cylinder DEPENDS test_cylinder)
