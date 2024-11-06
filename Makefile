@@ -24,6 +24,7 @@ TARGET = $(BIN_DIR)/raytracer
 TEST_TARGET_CAMERA = $(BIN_DIR)/test_camera
 TEST_TARGET_SPHERE = $(BIN_DIR)/test_sphere
 TEST_TARGET_RAY = $(BIN_DIR)/test_ray
+TEST_TARGET_TRIANGLE = $(BIN_DIR)/test_triangle
 
 # Default target to build the main executable
 all: $(TARGET)
@@ -46,6 +47,11 @@ test_sphere: $(OBJECTS) $(OBJ_DIR)/test_sphere.o $(OBJ_DIR)/catch_amalgamated.o 
 test_ray: $(OBJECTS) $(OBJ_DIR)/test_ray.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_RAY) $(OBJECTS) $(OBJ_DIR)/test_ray.o $(OBJ_DIR)/catch_amalgamated.o
 	./$(TEST_TARGET_RAY)
+
+# Compile and run the test_triangle executable
+test_triangle: $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_TRIANGLE) $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamated.o
+	./$(TEST_TARGET_TRIANGLE)
 
 # Compile each .cpp file in src to an object file (except main.cpp)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
