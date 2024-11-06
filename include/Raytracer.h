@@ -6,6 +6,7 @@
 #include "SceneLoader.h"
 #include "Ray.h"
 #include "Vector3.h"
+#include <limits>
 
 class Raytracer
 {

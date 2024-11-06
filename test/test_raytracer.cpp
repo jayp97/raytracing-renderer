@@ -14,7 +14,7 @@ bool areColorsEqual(const Color &c1, const Color &c2, float tolerance)
            std::fabs(c1.b - c2.b) < tolerance;
 }
 
-TEST_CASE("Raytracer runs and produces output", "[RAYTRACER]")
+TEST_CASE("Raytracer runs and produces output with intersections", "[RAYTRACER]")
 {
     int width = 3;
     int height = 3;
@@ -32,18 +32,34 @@ TEST_CASE("Raytracer runs and produces output", "[RAYTRACER]")
     // Run render (should produce an output image without errors)
     raytracer.render(sceneLoader, camera);
 
-    // Test a few pixels in the image
-    // For now, without intersections, the color will be black (0, 0, 0)
-    Image expectedImage(width, height);
+    // Define black and expected colors for the objects (red, green, blue)
     Color black(0, 0, 0);
+    Color red(1, 0, 0);
+    Color green(0, 1, 0);
+    Color blue(0, 0, 1);
 
-    // Check if each pixel in the rendered image is black
+    // Verify that at least one pixel is not black
+    bool foundNonBlackPixel = false;
+
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
-            Color pixelColor = raytracer.getImage().getPixel(x, y); // Assumes getImage() and getPixel() methods
-            REQUIRE(areColorsEqual(pixelColor, black, tolerance));
+            Color pixelColor = raytracer.getImage().getPixel(x, y);
+
+            // Check if this pixel color is black
+            if (!areColorsEqual(pixelColor, black, tolerance))
+            {
+                foundNonBlackPixel = true;
+
+                // Optionally, check if the color is one of the expected intersection colors
+                REQUIRE((areColorsEqual(pixelColor, red, tolerance) ||
+                         areColorsEqual(pixelColor, green, tolerance) ||
+                         areColorsEqual(pixelColor, blue, tolerance)));
+            }
         }
     }
+
+    // Ensure that at least one non-black pixel was found
+    REQUIRE(foundNonBlackPixel);
 }
