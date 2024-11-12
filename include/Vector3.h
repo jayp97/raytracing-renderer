@@ -1,3 +1,4 @@
+// Vector3.h
 #ifndef VECTOR3_H
 #define VECTOR3_H
 
@@ -10,14 +11,23 @@ public:
     float x, y, z;
 
     // Constructors
-    Vector3() : x(0), y(0), z(0) {}
-    Vector3(float x, float y, float z) : x(x), y(y), z(z) {}
+    Vector3() : x(0.0f), y(0.0f), z(0.0f) {}
+    Vector3(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
 
     // Basic Operations
     Vector3 operator+(const Vector3 &other) const;
     Vector3 operator-(const Vector3 &other) const;
     Vector3 operator*(float scalar) const;
     Vector3 operator/(float scalar) const;
+
+    // Compound Assignment Operators
+    Vector3 &operator+=(const Vector3 &other);
+    Vector3 &operator-=(const Vector3 &other);
+    Vector3 &operator*=(float scalar);
+    Vector3 &operator/=(float scalar);
+
+    // Unary Minus Operator
+    Vector3 operator-() const;
 
     // Dot Product and Cross Product
     float dot(const Vector3 &other) const;
@@ -26,8 +36,16 @@ public:
     // Normalize vector
     Vector3 normalise() const;
 
-    // Equality operator with tolerance for floating-point comparisons
+    // Length and Length Squared
+    float length() const;
+    float lengthSquared() const;
+
+    // Clamp vector components between min and max
+    Vector3 clamp(float min_val, float max_val) const;
+
+    // Equality operators with tolerance for floating-point comparisons
     bool operator==(const Vector3 &other) const;
+    bool operator!=(const Vector3 &other) const;
 
     // Stream insertion operator for printing
     friend std::ostream &operator<<(std::ostream &os, const Vector3 &v);
@@ -42,4 +60,4 @@ inline Vector3 operator*(float scalar, const Vector3 &v)
     return Vector3(v.x * scalar, v.y * scalar, v.z * scalar);
 }
 
-#endif
+#endif // VECTOR3_H

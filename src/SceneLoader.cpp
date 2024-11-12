@@ -1,10 +1,14 @@
+// SceneLoader.cpp
 #include "SceneLoader.h"
+#include "Sphere.h"
+#include "Cylinder.h"
+#include "Triangle.h"
 #include "Material.h"
 #include <fstream>
 #include <iostream>
 
-// Loads the entire scene from a JSON file
-bool SceneLoader::loadScene(const std::string &filePath)
+// Loads the entire scene from a JSON file and populates the Scene object
+bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
 {
     std::ifstream sceneFile(filePath);
     if (!sceneFile.is_open())
@@ -14,18 +18,26 @@ bool SceneLoader::loadScene(const std::string &filePath)
     }
 
     json sceneData;
-    sceneFile >> sceneData;
+    try
+    {
+        sceneFile >> sceneData;
+    }
+    catch (const json::parse_error &e)
+    {
+        std::cerr << "JSON parse error: " << e.what() << std::endl;
+        return false;
+    }
 
     // Load Render Mode
-    rendermode = sceneData.value("rendermode", "binary");
+    scene.renderMode = sceneData.value("rendermode", "binary");
 
     // Load nbounces if available
-    nbounces = sceneData.value("nbounces", 1);
+    scene.nbounces = sceneData.value("nbounces", 1);
 
     // Load Camera
     if (sceneData.contains("camera"))
     {
-        camera = loadCamera(sceneData["camera"]);
+        scene.camera = loadCamera(sceneData["camera"]);
     }
     else
     {
@@ -36,22 +48,35 @@ bool SceneLoader::loadScene(const std::string &filePath)
     // Load Background Color
     if (sceneData.contains("scene") && sceneData["scene"].contains("backgroundcolor"))
     {
-        backgroundColor = Vector3(sceneData["scene"]["backgroundcolor"][0], sceneData["scene"]["backgroundcolor"][1], sceneData["scene"]["backgroundcolor"][2]);
+        auto bg = sceneData["scene"]["backgroundcolor"];
+        if (bg.is_array() && bg.size() == 3)
+        {
+            scene.backgroundColor = Vector3(bg[0], bg[1], bg[2]);
+        }
+        else
+        {
+            std::cerr << "Invalid backgroundColor format. Using default." << std::endl;
+        }
     }
 
     // Load Lights
     if (sceneData["scene"].contains("lightsources"))
     {
-        lights = loadLights(sceneData["scene"]["lightsources"]);
+        scene.lights = loadLights(sceneData["scene"]["lightsources"]);
     }
 
-    // Load Shapes
+    // Load Objects
     if (sceneData["scene"].contains("shapes"))
     {
         auto shapesData = sceneData["scene"]["shapes"];
-        spheres = loadSpheres(shapesData);
-        cylinders = loadCylinders(shapesData);
-        triangles = loadTriangles(shapesData);
+        for (const auto &shape : shapesData)
+        {
+            auto obj = loadObject(shape);
+            if (obj)
+            {
+                scene.addObject(obj);
+            }
+        }
     }
     else
     {
@@ -71,7 +96,7 @@ Camera SceneLoader::loadCamera(const json &cameraData)
     float fov = cameraData["fov"];
     int width = cameraData["width"];
     int height = cameraData["height"];
-    float exposure = cameraData["exposure"];
+    float exposure = cameraData.value("exposure", 1.0f); // Default exposure if not specified
 
     return Camera(position, lookAt, upVector, fov, width, height, exposure);
 }
@@ -82,79 +107,153 @@ std::vector<Light> SceneLoader::loadLights(const json &lightsData)
     std::vector<Light> lights;
     for (const auto &light : lightsData)
     {
-        Vector3 position(light["position"][0], light["position"][1], light["position"][2]);
-        Vector3 intensity(light["intensity"][0], light["intensity"][1], light["intensity"][2]);
-        lights.emplace_back(position, intensity); // Assuming a Light constructor that takes position and intensity
+        if (light.contains("position") && light.contains("intensity"))
+        {
+            Vector3 position(light["position"][0], light["position"][1], light["position"][2]);
+            Vector3 intensity(light["intensity"][0], light["intensity"][1], light["intensity"][2]);
+            lights.emplace_back(position, intensity); // Assuming a Light constructor that takes position and intensity
+        }
+        else
+        {
+            std::cerr << "Invalid light source format. Skipping." << std::endl;
+        }
     }
     return lights;
 }
 
 // Helper to load material properties
-Material loadMaterial(const json &materialData)
+Material SceneLoader::loadMaterial(const json &materialData)
 {
     Material material;
-    material.ks = materialData["ks"];
-    material.kd = materialData["kd"];
-    material.specularExponent = materialData["specularexponent"];
-    material.diffuseColor = Vector3(materialData["diffusecolor"][0], materialData["diffusecolor"][1], materialData["diffusecolor"][2]);
-    material.specularColor = Vector3(materialData["specularcolor"][0], materialData["specularcolor"][1], materialData["specularcolor"][2]);
-    material.isReflective = materialData["isreflective"];
-    material.reflectivity = materialData["reflectivity"];
-    material.isRefractive = materialData["isrefractive"];
-    material.refractiveIndex = materialData["refractiveindex"];
+    // Map JSON fields to Material properties
+    // Scene.json uses:
+    // "ks": specular coefficient (float)
+    // "kd": diffuse coefficient (float)
+    // "specularexponent": specular exponent (float)
+    // "diffusecolor": [r, g, b]
+    // "specularcolor": [r, g, b]
+    // "isreflective": bool
+    // "reflectivity": float
+    // "isrefractive": bool
+    // "refractiveindex": float
+
+    // Set diffuse color
+    if (materialData.contains("diffusecolor") && materialData["diffusecolor"].is_array() && materialData["diffusecolor"].size() == 3)
+    {
+        material.diffuseColor = Vector3(materialData["diffusecolor"][0], materialData["diffusecolor"][1], materialData["diffusecolor"][2]);
+    }
+    else
+    {
+        // Default diffuse color
+        material.diffuseColor = Vector3(0.5f, 0.5f, 0.5f);
+    }
+
+    // Set specular color
+    if (materialData.contains("specularcolor") && materialData["specularcolor"].is_array() && materialData["specularcolor"].size() == 3)
+    {
+        material.specularColor = Vector3(materialData["specularcolor"][0], materialData["specularcolor"][1], materialData["specularcolor"][2]);
+    }
+    else
+    {
+        // Default specular color
+        material.specularColor = Vector3(1.0f, 1.0f, 1.0f);
+    }
+
+    // Set shininess
+    if (materialData.contains("specularexponent"))
+    {
+        material.specularExponent = materialData["specularexponent"];
+    }
+    else
+    {
+        // Default shininess
+        material.specularExponent = 32.0f;
+    }
+
+    // Set diffuse coefficient
+    material.kd = materialData.value("kd", 0.9f);
+
+    // Set specular coefficient
+    material.ks = materialData.value("ks", 0.1f);
+
+    // Derive ambient color as diffuseColor * kd
+    material.ambient = material.diffuseColor * material.kd;
+
+    // Set reflectivity
+    material.isReflective = materialData.value("isreflective", false);
+    material.reflectivity = materialData.value("reflectivity", 0.0f);
+
+    // Set refractive properties
+    material.isRefractive = materialData.value("isrefractive", false);
+    material.refractiveIndex = materialData.value("refractiveindex", 1.0f);
+
     return material;
 }
 
-// Load Spheres
-std::vector<Sphere> SceneLoader::loadSpheres(const json &shapesData)
+// Loads a single object (Sphere, Cylinder, Triangle)
+std::shared_ptr<Object> SceneLoader::loadObject(const json &shapeData)
 {
-    std::vector<Sphere> spheres;
-    for (const auto &shape : shapesData)
+    if (!shapeData.contains("type"))
     {
-        if (shape["type"] == "sphere")
-        {
-            Vector3 center(shape["center"][0], shape["center"][1], shape["center"][2]);
-            float radius = shape["radius"];
-            Material material = shape.contains("material") ? loadMaterial(shape["material"]) : Material();
-            spheres.emplace_back(center, radius, material); // Sphere constructor with material
-        }
+        std::cerr << "Shape type missing. Skipping object." << std::endl;
+        return nullptr;
     }
-    return spheres;
-}
 
-// Load Cylinders
-std::vector<Cylinder> SceneLoader::loadCylinders(const json &shapesData)
-{
-    std::vector<Cylinder> cylinders;
-    for (const auto &shape : shapesData)
+    std::string type = shapeData["type"];
+    Material material = Material(); // Default material
+    if (shapeData.contains("material"))
     {
-        if (shape["type"] == "cylinder")
-        {
-            Vector3 center(shape["center"][0], shape["center"][1], shape["center"][2]);
-            Vector3 axis(shape["axis"][0], shape["axis"][1], shape["axis"][2]);
-            float radius = shape["radius"];
-            float height = shape["height"];
-            Material material = shape.contains("material") ? loadMaterial(shape["material"]) : Material();
-            cylinders.emplace_back(center, axis, radius, height, material); // Cylinder constructor with material
-        }
+        material = loadMaterial(shapeData["material"]);
     }
-    return cylinders;
-}
 
-// Load Triangles
-std::vector<Triangle> SceneLoader::loadTriangles(const json &shapesData)
-{
-    std::vector<Triangle> triangles;
-    for (const auto &shape : shapesData)
+    if (type == "sphere")
     {
-        if (shape["type"] == "triangle")
+        if (shapeData.contains("center") && shapeData.contains("radius"))
         {
-            Vector3 v0(shape["v0"][0], shape["v0"][1], shape["v0"][2]);
-            Vector3 v1(shape["v1"][0], shape["v1"][1], shape["v1"][2]);
-            Vector3 v2(shape["v2"][0], shape["v2"][1], shape["v2"][2]);
-            Material material = shape.contains("material") ? loadMaterial(shape["material"]) : Material();
-            triangles.emplace_back(v0, v1, v2, material); // Triangle constructor
+            Vector3 center(shapeData["center"][0], shapeData["center"][1], shapeData["center"][2]);
+            float radius = shapeData["radius"];
+            return std::make_shared<Sphere>(center, radius, material);
+        }
+        else
+        {
+            std::cerr << "Invalid sphere format. Skipping object." << std::endl;
+            return nullptr;
         }
     }
-    return triangles;
+    else if (type == "cylinder")
+    {
+        if (shapeData.contains("center") && shapeData.contains("axis") && shapeData.contains("radius") && shapeData.contains("height"))
+        {
+            Vector3 center(shapeData["center"][0], shapeData["center"][1], shapeData["center"][2]);
+            Vector3 axis(shapeData["axis"][0], shapeData["axis"][1], shapeData["axis"][2]);
+            float radius = shapeData["radius"];
+            float height = shapeData["height"];
+            return std::make_shared<Cylinder>(center, axis, radius, height, material);
+        }
+        else
+        {
+            std::cerr << "Invalid cylinder format. Skipping object." << std::endl;
+            return nullptr;
+        }
+    }
+    else if (type == "triangle")
+    {
+        if (shapeData.contains("v0") && shapeData.contains("v1") && shapeData.contains("v2"))
+        {
+            Vector3 v0(shapeData["v0"][0], shapeData["v0"][1], shapeData["v0"][2]);
+            Vector3 v1(shapeData["v1"][0], shapeData["v1"][1], shapeData["v1"][2]);
+            Vector3 v2(shapeData["v2"][0], shapeData["v2"][1], shapeData["v2"][2]);
+            return std::make_shared<Triangle>(v0, v1, v2, material);
+        }
+        else
+        {
+            std::cerr << "Invalid triangle format. Skipping object." << std::endl;
+            return nullptr;
+        }
+    }
+    else
+    {
+        std::cerr << "Unknown shape type: " << type << ". Skipping object." << std::endl;
+        return nullptr;
+    }
 }

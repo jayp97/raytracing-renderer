@@ -1,86 +1,129 @@
+// Cylinder.cpp
 #include "Cylinder.h"
 #include <cmath>
-#include <limits> // For std::numeric_limits
+#include <limits>
 
-// Updated constructor with Material parameter
+// Constructor with Material parameter
 Cylinder::Cylinder(const Vector3 &c, const Vector3 &a, float r, float h, const Material &m)
     : center(c), axis(a.normalise()), radius(r), height(h), material(m) {}
 
-// Method to check ray-cylinder intersection
-bool Cylinder::intersect(const Ray &ray, float &t) const
+// Method to check ray-cylinder intersection and populate Intersection
+bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
 {
     Vector3 oc = ray.origin - center;
 
     // Components perpendicular to the cylinder axis
-    Vector3 rayDirPerp = ray.direction - (ray.direction.dot(axis)) * axis;
-    Vector3 ocPerp = oc - (oc.dot(axis)) * axis;
+    Vector3 rayDirPerp = ray.direction - axis * ray.direction.dot(axis);
+    Vector3 ocPerp = oc - axis * oc.dot(axis);
 
     float a = rayDirPerp.dot(rayDirPerp);
     float b = 2.0f * rayDirPerp.dot(ocPerp);
     float c = ocPerp.dot(ocPerp) - radius * radius;
 
     float discriminant = b * b - 4 * a * c;
-    bool hit = false;
+    bool hitCylinderSide = false;
+    float tSide = std::numeric_limits<float>::max();
 
+    // Check for intersection with the side surface of the cylinder
     if (discriminant >= 0)
     {
         float sqrtDisc = std::sqrt(discriminant);
         float t1 = (-b - sqrtDisc) / (2.0f * a);
         float t2 = (-b + sqrtDisc) / (2.0f * a);
 
-        // Check for valid intersection along the side surface
-        float tSide = std::numeric_limits<float>::max();
-        for (float tempT : {t1, t2})
+        for (float tTemp : {t1, t2})
         {
-            if (tempT > 0 && tempT < t)
+            if (tTemp > 1e-4f) // Avoid self-intersection
             {
-                Vector3 point = ray.origin + tempT * ray.direction;
+                Vector3 point = ray.origin + tTemp * ray.direction;
                 float heightCheck = (point - center).dot(axis);
                 if (heightCheck >= 0 && heightCheck <= height)
                 {
-                    if (tempT < tSide)
+                    if (tTemp < tSide)
                     {
-                        tSide = tempT;
-                        t = tempT;
-                        hit = true;
+                        tSide = tTemp;
+                        hitCylinderSide = true;
                     }
                 }
             }
         }
     }
 
-    // Check for cap intersections only if the ray is not parallel to the caps
-    float axisDotRayDir = ray.direction.dot(axis);
-    const float epsilon = 1e-6f;
+    // Initialize to no intersection
+    bool hitAnything = false;
+    float tFinal = std::numeric_limits<float>::max();
 
-    if (std::fabs(axisDotRayDir) > epsilon)
+    // If intersection with side surface is found
+    if (hitCylinderSide && tSide < tFinal)
     {
-        // Top cap
-        float tTop = ((center + axis * height) - ray.origin).dot(axis) / axisDotRayDir;
-        if (tTop > 0 && tTop < t)
-        {
-            Vector3 point = ray.origin + tTop * ray.direction;
-            Vector3 v = point - (center + axis * height);
-            if (v.dot(v) - std::pow(v.dot(axis), 2) <= radius * radius)
-            {
-                t = tTop;
-                hit = true;
-            }
-        }
+        tFinal = tSide;
+        hit.point = ray.origin + tFinal * ray.direction;
+        hit.normal = getNormal(hit.point);
+        hit.material = material;
+        hit.distance = tFinal;
+        hitAnything = true;
+    }
 
-        // Bottom cap
-        float tBottom = (center - ray.origin).dot(axis) / axisDotRayDir;
-        if (tBottom > 0 && tBottom < t)
+    // Check for intersection with the top and bottom caps
+    float tCap;
+    Vector3 capCenter;
+    Vector3 capNormal;
+
+    // Top cap
+    capCenter = center + axis * height;
+    capNormal = axis;
+    float denom = ray.direction.dot(capNormal);
+    if (std::fabs(denom) > 1e-6f)
+    {
+        tCap = (capCenter - ray.origin).dot(capNormal) / denom;
+        if (tCap > 1e-4f && tCap < tFinal)
         {
-            Vector3 point = ray.origin + tBottom * ray.direction;
-            Vector3 v = point - center;
-            if (v.dot(v) - std::pow(v.dot(axis), 2) <= radius * radius)
+            Vector3 pCap = ray.origin + tCap * ray.direction;
+            Vector3 v = pCap - capCenter;
+            if (v.dot(v) <= radius * radius)
             {
-                t = tBottom;
-                hit = true;
+                tFinal = tCap;
+                hit.point = pCap;
+                hit.normal = capNormal;
+                hit.material = material;
+                hit.distance = tFinal;
+                hitAnything = true;
             }
         }
     }
 
-    return hit;
+    // Bottom cap
+    capCenter = center;
+    capNormal = -axis;
+    denom = ray.direction.dot(capNormal);
+    if (std::fabs(denom) > 1e-6f)
+    {
+        tCap = (capCenter - ray.origin).dot(capNormal) / denom;
+        if (tCap > 1e-4f && tCap < tFinal)
+        {
+            Vector3 pCap = ray.origin + tCap * ray.direction;
+            Vector3 v = pCap - capCenter;
+            if (v.dot(v) <= radius * radius)
+            {
+                tFinal = tCap;
+                hit.point = pCap;
+                hit.normal = capNormal;
+                hit.material = material;
+                hit.distance = tFinal;
+                hitAnything = true;
+            }
+        }
+    }
+
+    return hitAnything;
+}
+
+// Method to get the normal at a point on the cylinder
+Vector3 Cylinder::getNormal(const Vector3 &point) const
+{
+    Vector3 v = point - center;
+    float projection = v.dot(axis);
+    Vector3 projectionPoint = center + axis * projection;
+    Vector3 normal = (point - projectionPoint).normalise();
+    return normal;
 }
