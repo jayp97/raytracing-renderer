@@ -125,6 +125,36 @@ bool Vector3::operator!=(const Vector3 &other) const
     return !(*this == other);
 }
 
+// Reflect
+Vector3 Vector3::reflect(const Vector3 &normal) const
+{
+    return *this - normal * (2.0f * this->dot(normal));
+}
+
+// Refraction
+Vector3 Vector3::refract(const Vector3 &normal, float eta) const
+{
+    // Snell's Law: eta = n_i / n_t
+    float cosi = std::max(-1.0f, std::min(1.0f, this->dot(normal)));
+    float etai = 1.0f, etat = eta;
+    Vector3 n = normal;
+    if (cosi < 0)
+    {
+        cosi = -cosi;
+    }
+    else
+    {
+        std::swap(etai, etat);
+        n = -normal;
+    }
+    float eta_ratio = etai / etat;
+    float k = 1.0f - eta_ratio * eta_ratio * (1.0f - cosi * cosi);
+    if (k < 0)
+        return Vector3(0.0f, 0.0f, 0.0f); // Total internal reflection
+    else
+        return (*this) * eta_ratio + n * (eta_ratio * cosi - std::sqrt(k));
+}
+
 // Debug print method
 void Vector3::print() const
 {

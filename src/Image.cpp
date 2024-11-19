@@ -1,6 +1,11 @@
 #include "Image.h"
 #include <fstream>
 
+Image::Image() : width(0), height(0), pixels()
+{
+    // Initialize to an empty image or set default values if necessary
+}
+
 Image::Image(int width, int height) : width(width), height(height), pixels(width * height) {}
 
 void Image::setPixel(int x, int y, const Color &color)

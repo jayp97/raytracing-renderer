@@ -36,6 +36,9 @@ public:
     // Normalize vector
     Vector3 normalise() const;
 
+    Vector3 reflect(const Vector3 &normal) const;
+    Vector3 refract(const Vector3 &normal, float eta) const;
+
     // Length and Length Squared
     float length() const;
     float lengthSquared() const;
