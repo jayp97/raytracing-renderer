@@ -8,6 +8,7 @@
 #include "nlohmann/json.hpp"
 #include "Scene.h"   // Updated to include Scene
 #include "Light.h"   // Light class
+#include "Color.h"   // Color struct
 #include "Vector3.h" // Vector3 class
 
 using json = nlohmann::json;

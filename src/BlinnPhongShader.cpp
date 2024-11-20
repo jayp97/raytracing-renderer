@@ -1,7 +1,7 @@
 // BlinnPhongShader.cpp
 #include "BlinnPhongShader.h"
-#include <algorithm> // For std::max
-#include <cmath>     // For std::pow
+#include <algorithm>
+#include <cmath>
 
 BlinnPhongShader::BlinnPhongShader(const Scene &scene, const Vector3 &cameraPos)
     : scene(scene), cameraPosition(cameraPos)
@@ -11,34 +11,39 @@ BlinnPhongShader::BlinnPhongShader(const Scene &scene, const Vector3 &cameraPos)
 
 Color BlinnPhongShader::shade(const Intersection &hit) const
 {
-    Color finalColor(0, 0, 0); // Initialize to black
+    // Initialize the final color with the ambient component
+    Color finalColor = hit.material.ambient;
+
+    // Normalize the normal at the hit point
+    Vector3 normal = hit.normal.normalise();
+
+    // Compute the view direction (from hit point to camera)
+    Vector3 viewDir = (cameraPosition - hit.point).normalise();
 
     // Iterate over each light source
     for (const auto &light : scene.lights)
     {
-        // Use the getter method to access the light's position
+        // Compute the direction from the hit point to the light
         Vector3 lightDir = (light.getPosition() - hit.point).normalise();
-        Vector3 viewDir = (cameraPosition - hit.point).normalise();
-        Vector3 halfDir = (lightDir + viewDir).normalise();
-        Vector3 normal = hit.normal.normalise();
 
-        // Ambient component
-        Color ambient = hit.material.ambient;
+        // Compute the halfway vector between light direction and view direction
+        Vector3 halfDir = (lightDir + viewDir).normalise();
 
         // Diffuse component
         float diff = std::max(normal.dot(lightDir), 0.0f);
-        Color diffuse = hit.material.diffuseColor * diff;
+        Color diffuse = hit.material.diffuseColor * hit.material.kd * diff;
+        diffuse = diffuse * light.getIntensity(); // Element-wise multiplication
 
         // Specular component
         float specAngle = std::max(normal.dot(halfDir), 0.0f);
         float spec = std::pow(specAngle, hit.material.specularExponent);
-        Color specular = hit.material.specularColor * spec;
+        Color specular = hit.material.specularColor * hit.material.ks * spec;
+        specular = specular * light.getIntensity(); // Element-wise multiplication
 
         // Shadow check
-        // Directly construct the Ray with origin and direction
         Ray shadowRay(hit.point + normal * 1e-4f, lightDir);
-
         bool inShadow = false;
+
         for (const auto &object : scene.objects)
         {
             Intersection shadowHit;
@@ -55,13 +60,8 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
 
         if (!inShadow)
         {
-            // Accumulate color contributions
-            finalColor += ambient + diffuse + specular;
-        }
-        else
-        {
-            // Only ambient component is added if in shadow
-            finalColor += ambient;
+            // Accumulate diffuse and specular contributions
+            finalColor += diffuse + specular;
         }
     }
 

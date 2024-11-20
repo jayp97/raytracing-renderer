@@ -125,6 +125,12 @@ bool Vector3::operator!=(const Vector3 &other) const
     return !(*this == other);
 }
 
+// Element-wise multiplication
+Vector3 Vector3::operator*(const Vector3 &other) const
+{
+    return Vector3(x * other.x, y * other.y, z * other.z);
+}
+
 // Reflect
 Vector3 Vector3::reflect(const Vector3 &normal) const
 {

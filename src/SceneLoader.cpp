@@ -4,6 +4,7 @@
 #include "Cylinder.h"
 #include "Triangle.h"
 #include "Material.h"
+#include "Color.h"
 #include <fstream>
 #include <iostream>
 
@@ -51,7 +52,7 @@ bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
         auto bg = sceneData["scene"]["backgroundcolor"];
         if (bg.is_array() && bg.size() == 3)
         {
-            scene.backgroundColor = Vector3(bg[0], bg[1], bg[2]);
+            scene.backgroundColor = Color(bg[0], bg[1], bg[2]);
         }
         else
         {
@@ -110,7 +111,7 @@ std::vector<Light> SceneLoader::loadLights(const json &lightsData)
         if (light.contains("position") && light.contains("intensity"))
         {
             Vector3 position(light["position"][0], light["position"][1], light["position"][2]);
-            Vector3 intensity(light["intensity"][0], light["intensity"][1], light["intensity"][2]);
+            Color intensity(light["intensity"][0], light["intensity"][1], light["intensity"][2]);
             lights.emplace_back(position, intensity); // Assuming a Light constructor that takes position and intensity
         }
         else
@@ -140,23 +141,23 @@ Material SceneLoader::loadMaterial(const json &materialData)
     // Set diffuse color
     if (materialData.contains("diffusecolor") && materialData["diffusecolor"].is_array() && materialData["diffusecolor"].size() == 3)
     {
-        material.diffuseColor = Vector3(materialData["diffusecolor"][0], materialData["diffusecolor"][1], materialData["diffusecolor"][2]);
+        material.diffuseColor = Color(materialData["diffusecolor"][0], materialData["diffusecolor"][1], materialData["diffusecolor"][2]);
     }
     else
     {
         // Default diffuse color
-        material.diffuseColor = Vector3(0.5f, 0.5f, 0.5f);
+        material.diffuseColor = Color(0.5f, 0.5f, 0.5f);
     }
 
     // Set specular color
     if (materialData.contains("specularcolor") && materialData["specularcolor"].is_array() && materialData["specularcolor"].size() == 3)
     {
-        material.specularColor = Vector3(materialData["specularcolor"][0], materialData["specularcolor"][1], materialData["specularcolor"][2]);
+        material.specularColor = Color(materialData["specularcolor"][0], materialData["specularcolor"][1], materialData["specularcolor"][2]);
     }
     else
     {
         // Default specular color
-        material.specularColor = Vector3(1.0f, 1.0f, 1.0f);
+        material.specularColor = Color(1.0f, 1.0f, 1.0f);
     }
 
     // Set shininess

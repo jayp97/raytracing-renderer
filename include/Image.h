@@ -1,30 +1,24 @@
+// include/Image.h
 #ifndef IMAGE_H
 #define IMAGE_H
 
+#include "Color.h"
 #include <vector>
 #include <string>
-
-struct Color
-{
-    float r, g, b;
-    Color() : r(0), g(0), b(0) {}
-    Color(float r, float g, float b) : r(r), g(g), b(b) {}
-};
 
 class Image
 {
 public:
+    Image();
     Image(int width, int height);
 
-    // Add default constructor
-    Image();
-
     void setPixel(int x, int y, const Color &color);
-    Color getPixel(int x, int y) const; // New method to get pixel color
+    Color getPixel(int x, int y) const;
     bool saveAsPPM(const std::string &filename) const;
 
 private:
-    int width, height;
+    int width;
+    int height;
     std::vector<Color> pixels;
 };
 

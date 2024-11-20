@@ -1,5 +1,5 @@
-
+// Scene.cpp
 #include "Scene.h"
+#include "Color.h"
 
-// Currently, all methods are inline or simple.
-// You can add more complex methods in the future.
+// No need to define Scene constructor here; it's already inline in Scene.h

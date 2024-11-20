@@ -26,6 +26,9 @@ public:
     Vector3 &operator*=(float scalar);
     Vector3 &operator/=(float scalar);
 
+    // operator for element-wise multiplication
+    Vector3 operator*(const Vector3 &other) const;
+
     // Unary Minus Operator
     Vector3 operator-() const;
 

@@ -3,6 +3,7 @@
 #define MATERIAL_H
 
 #include "Vector3.h"
+#include "Color.h"
 
 class Material
 {
@@ -19,9 +20,9 @@ public:
     float ks;               // Specular coefficient
     float kd;               // Diffuse coefficient
     float specularExponent; // Specular exponent for shininess
-    Vector3 ambient;        // Ambient color
-    Vector3 diffuseColor;   // Diffuse color
-    Vector3 specularColor;  // Specular color
+    Color ambient;          // Ambient color
+    Color diffuseColor;     // Diffuse color
+    Color specularColor;    // Specular color
     bool isReflective;      // Reflective flag
     float reflectivity;     // Reflectivity factor
     bool isRefractive;      // Refractive flag

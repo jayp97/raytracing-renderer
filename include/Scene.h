@@ -19,7 +19,7 @@ public:
     Camera camera;                                // Camera
     std::vector<std::shared_ptr<Object>> objects; // Collection of objects (polymorphic)
     std::vector<Light> lights;                    // Collection of lights
-    Vector3 backgroundColor;                      // Background color
+    Color backgroundColor;                        // Background color
     std::string renderMode;                       // Rendering mode (e.g., binary, phong, pathtracer)
     int nbounces;                                 // Number of bounces for reflections/refractions
 

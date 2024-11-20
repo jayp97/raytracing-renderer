@@ -1,25 +1,24 @@
 // Raytracer.cpp
 #include "Raytracer.h"
-#include "BlinnPhongShader.h" // Shader class for shading computations
+#include "BlinnPhongShader.h"
 #include <iostream>
+#include <algorithm>
 
 Raytracer::Raytracer()
 {
     // Initialization if necessary
 }
 
-// Render the scene and save the output image
 void Raytracer::render(const Scene &scene, const std::string &outputFilename)
 {
     const Camera &camera = scene.camera;
-    int width = camera.width;     // Correct member name
-    int height = camera.height;   // Correct member name
-    image = Image(width, height); // Ensure Image has a constructor Image(int, int)
+    int width = camera.width;
+    int height = camera.height;
+    image = Image(width, height);
 
     bool isBinaryMode = scene.renderMode == "binary";
-    int maxBounces = scene.nbounces;
 
-    // Initialize the shader (e.g., Blinn-Phong)
+    // Initialize the shader once
     BlinnPhongShader shader(scene, scene.camera.position);
 
     // Iterate over each pixel
@@ -30,7 +29,7 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             Ray ray = camera.generateRay(static_cast<float>(x), static_cast<float>(y));
 
             // Trace the ray and compute the color
-            Color color = trace(ray, scene, 0);
+            Color color = trace(ray, scene, shader, 0);
 
             if (isBinaryMode)
             {
@@ -57,11 +56,10 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     std::cout << "Rendering completed. Image saved to " << outputFilename << std::endl;
 }
 
-// Trace a ray into the scene and compute the color, supporting recursion for reflections/refractions
-Color Raytracer::trace(const Ray &ray, const Scene &scene, int depth) const
+Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth) const
 {
-    if (depth > scene.nbounces)
-        return Color(0, 0, 0); // Base case: no contribution
+    if (depth >= scene.nbounces)
+        return Color(0, 0, 0); // Base case: no further contribution
 
     Intersection closestHit;
     bool hit = scene.intersect(ray, closestHit);
@@ -69,28 +67,69 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, int depth) const
     if (hit)
     {
         // Compute the color at the intersection point using the shader
-        BlinnPhongShader shader(scene, scene.camera.position); // Corrected access to camera
         Color shadedColor = shader.shade(closestHit);
 
+        // Initialize accumulated color with the shaded color
+        Color accumulatedColor = shadedColor;
+
         // Handle reflections if the material is reflective
-        if (closestHit.material.isReflective && depth < scene.nbounces)
+        if (closestHit.material.isReflective && closestHit.material.reflectivity > 0.0f)
         {
             Vector3 reflectedDir = ray.direction.reflect(closestHit.normal).normalise();
             Ray reflectedRay(closestHit.point + closestHit.normal * 1e-4f, reflectedDir);
-            Color reflectedColor = trace(reflectedRay, scene, depth + 1);
-            shadedColor = shadedColor * (1.0f - closestHit.material.reflectivity) + reflectedColor * closestHit.material.reflectivity;
+            Color reflectedColor = trace(reflectedRay, scene, shader, depth + 1);
+
+            // Blend the reflected color with the current accumulated color
+            float reflectivity = closestHit.material.reflectivity;
+            accumulatedColor = accumulatedColor * (1.0f - reflectivity) + reflectedColor * reflectivity;
         }
 
         // Handle refractions if the material is refractive
-        if (closestHit.material.isRefractive && depth < scene.nbounces)
+        if (closestHit.material.isRefractive)
         {
-            Vector3 refractedDir = ray.direction.refract(closestHit.normal, closestHit.material.refractiveIndex).normalise();
-            Ray refractedRay(closestHit.point - closestHit.normal * 1e-4f, refractedDir);
-            Color refractedColor = trace(refractedRay, scene, depth + 1);
-            shadedColor = shadedColor * (1.0f - closestHit.material.reflectivity) + refractedColor * closestHit.material.reflectivity;
+            float transmission = 1.0f - closestHit.material.reflectivity;
+            if (transmission > 0.0f)
+            {
+                float eta = closestHit.material.refractiveIndex;
+                Vector3 normal = closestHit.normal;
+                float cosi = normal.dot(ray.direction);
+                float etai = 1.0f;
+                float etat = eta;
+
+                if (cosi > 0)
+                {
+                    // Ray is inside the object, swap indices and invert normal
+                    std::swap(etai, etat);
+                    normal = -normal;
+                }
+                float etaRatio = etai / etat;
+
+                // Calculate the refracted direction
+                float k = 1 - etaRatio * etaRatio * (1 - cosi * cosi);
+                Vector3 refractedDir;
+                if (k < 0)
+                {
+                    // Total internal reflection
+                    refractedDir = ray.direction.reflect(normal);
+                }
+                else
+                {
+                    refractedDir = ray.direction * etaRatio + normal * (etaRatio * cosi - sqrtf(k));
+                }
+
+                refractedDir = refractedDir.normalise();
+                Ray refractedRay(closestHit.point - normal * 1e-4f, refractedDir);
+                Color refractedColor = trace(refractedRay, scene, shader, depth + 1);
+
+                // Blend the refracted color with the accumulated color
+                accumulatedColor = accumulatedColor * (1.0f - transmission) + refractedColor * transmission;
+            }
         }
 
-        return shadedColor;
+        // Clamp the accumulated color to [0, 1] range
+        accumulatedColor = accumulatedColor.clamp(0.0f, 1.0f);
+
+        return accumulatedColor;
     }
     else
     {
