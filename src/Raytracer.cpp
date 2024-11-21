@@ -41,8 +41,8 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
 
             if (isBinaryMode)
             {
-                // If binary mode, set color to white on intersection, else to background color
-                color = (color != scene.backgroundColor) ? Color(1, 1, 1) : scene.backgroundColor;
+                // Set color to red on intersection, else to black
+                color = (color != scene.backgroundColor) ? Color(1, 0, 0) : scene.backgroundColor;
             }
 
             // Set the pixel color (assumes thread-safe)
