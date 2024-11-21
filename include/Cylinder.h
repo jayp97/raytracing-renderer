@@ -17,6 +17,11 @@ public:
     // Method to check ray-cylinder intersection and populate Intersection
     bool intersect(const Ray &ray, Intersection &hit) const override;
 
+    const Vector3 &getCenter() const { return center; }
+    const Vector3 &getAxis() const { return axis; }
+    float getRadius() const { return radius; }
+    float getHeight() const { return height; }
+
 private:
     // Method to get the normal at a point on the cylinder
     Vector3 getNormal(const Vector3 &point) const;
