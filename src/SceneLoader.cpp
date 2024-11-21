@@ -5,6 +5,7 @@
 #include "Triangle.h"
 #include "Material.h"
 #include "Color.h"
+#include "CheckerboardTexture.h"
 #include <fstream>
 #include <iostream>
 
@@ -169,6 +170,39 @@ Material SceneLoader::loadMaterial(const json &materialData)
     {
         // Default shininess
         material.specularExponent = 32.0f;
+    }
+
+    // Load texture if present
+    if (materialData.contains("texture"))
+    {
+        auto textureData = materialData["texture"];
+        if (textureData.contains("type"))
+        {
+            std::string textureType = textureData["type"];
+            if (textureType == "checkerboard")
+            {
+                Color color1(1.0f, 1.0f, 1.0f);
+                Color color2(0.0f, 0.0f, 0.0f);
+                float scale = 1.0f;
+                if (textureData.contains("color1"))
+                {
+                    color1 = Color(textureData["color1"][0], textureData["color1"][1], textureData["color1"][2]);
+                }
+                if (textureData.contains("color2"))
+                {
+                    color2 = Color(textureData["color2"][0], textureData["color2"][1], textureData["color2"][2]);
+                }
+                if (textureData.contains("scale"))
+                {
+                    scale = textureData["scale"];
+                }
+                material.texture = std::make_shared<CheckerboardTexture>(color1, color2, scale);
+            }
+            else
+            {
+                std::cerr << "Unknown texture type: " << textureType << ". Skipping texture." << std::endl;
+            }
+        }
     }
 
     // Set diffuse coefficient

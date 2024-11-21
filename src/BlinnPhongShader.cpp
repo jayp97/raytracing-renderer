@@ -1,5 +1,8 @@
+// BlinnPhongShader.cpp
 #include "BlinnPhongShader.h"
 #include "Ray.h"
+#include <algorithm>
+#include <cmath>
 
 BlinnPhongShader::BlinnPhongShader(const Scene &scene, const Vector3 &cameraPos)
     : scene(scene), cameraPosition(cameraPos) {}
@@ -7,6 +10,13 @@ BlinnPhongShader::BlinnPhongShader(const Scene &scene, const Vector3 &cameraPos)
 Color BlinnPhongShader::shade(const Intersection &hit) const
 {
     Color finalColor(0, 0, 0); // Initialize to black
+
+    // Use texture color if available
+    Color diffuseColor = hit.material.diffuseColor;
+    if (hit.material.texture)
+    {
+        diffuseColor = hit.material.texture->getColor(hit.u, hit.v);
+    }
 
     for (const auto &light : scene.lights)
     {
@@ -16,7 +26,6 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         if (isInShadow(hit.point, lightDir, lightDistance))
         {
             finalColor += hit.material.ambient;
-            std::cout << "In shadow. Adding ambient: " << hit.material.ambient << "\n";
             continue;
         }
 
@@ -24,16 +33,17 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         Vector3 halfDir = (lightDir + viewDir).normalise();
         Vector3 normal = hit.normal.normalise();
 
-        Color ambient = hit.material.ambient;
+        // Recalculate ambient color using texture
+        Color ambient = diffuseColor * hit.material.kd;
+
         float diff = std::max(normal.dot(lightDir), 0.0f);
-        Color diffuse = hit.material.diffuseColor * hit.material.kd * diff * light.getIntensity();
+        Color diffuse = diffuseColor * hit.material.kd * diff * light.getIntensity();
+
         float specAngle = std::max(normal.dot(halfDir), 0.0f);
         float spec = std::pow(specAngle, hit.material.specularExponent);
         Color specular = hit.material.specularColor * hit.material.ks * spec * light.getIntensity();
 
         finalColor += ambient + diffuse + specular;
-
-        // std::cout << "Ambient: " << ambient << ", Diffuse: " << diffuse << ", Specular: " << specular << "\n";
     }
 
     return finalColor.clamp(0.0f, 1.0f);
@@ -41,7 +51,6 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
 
 bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir, float lightDistance) const
 {
-    // Increase the offset to ensure the shadow ray starts outside any geometry
     const float shadowBias = 1e-3f;
     Ray shadowRay(point + lightDir * shadowBias, lightDir);
 
@@ -50,11 +59,8 @@ bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir,
         Intersection shadowHit;
         if (object->intersect(shadowRay, shadowHit))
         {
-            // Check if the object is between the point and the light
             if (shadowHit.distance < lightDistance)
             {
-                // Optionally, you can add a small bias to the lightDistance comparison
-                std::cout << "Shadow detected at distance: " << shadowHit.distance << "\n";
                 return true; // Point is in shadow
             }
         }

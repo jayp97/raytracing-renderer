@@ -2,8 +2,9 @@
 #ifndef MATERIAL_H
 #define MATERIAL_H
 
-#include "Vector3.h"
 #include "Color.h"
+#include <memory>
+#include "Texture.h"
 
 class Material
 {
@@ -14,7 +15,8 @@ public:
           ambient(0.1f, 0.1f, 0.1f),
           diffuseColor(1.0f, 1.0f, 1.0f), specularColor(1.0f, 1.0f, 1.0f),
           isReflective(false), reflectivity(0.0f),
-          isRefractive(false), refractiveIndex(1.0f) {}
+          isRefractive(false), refractiveIndex(1.0f),
+          texture(nullptr) {}
 
     // Material properties
     float ks;               // Specular coefficient
@@ -27,6 +29,9 @@ public:
     float reflectivity;     // Reflectivity factor
     bool isRefractive;      // Refractive flag
     float refractiveIndex;  // Refractive index
+
+    // Texture
+    std::shared_ptr<Texture> texture;
 };
 
 #endif // MATERIAL_H

@@ -1,8 +1,7 @@
 // Sphere.cpp
 #include "Sphere.h"
-#include <cmath> // For sqrt
+#include <cmath> // For sqrt and atan2
 
-// Sphere.h
 bool Sphere::intersect(const Ray &ray, Intersection &hit) const
 {
     Vector3 oc = ray.origin - center;
@@ -18,11 +17,9 @@ bool Sphere::intersect(const Ray &ray, Intersection &hit) const
     float t0 = (-b - sqrtDisc) / (2.0f * a);
     float t1 = (-b + sqrtDisc) / (2.0f * a);
 
-    // Swap if necessary to ensure t0 is the smaller value
     if (t0 > t1)
         std::swap(t0, t1);
 
-    // Find the nearest positive t
     float t;
     if (t0 > 1e-4f)
     {
@@ -34,7 +31,6 @@ bool Sphere::intersect(const Ray &ray, Intersection &hit) const
     }
     else
     {
-        // Both t0 and t1 are negative or too close to zero
         return false;
     }
 
@@ -42,6 +38,14 @@ bool Sphere::intersect(const Ray &ray, Intersection &hit) const
     hit.point = ray.origin + ray.direction * t;
     hit.normal = (hit.point - center).normalise();
     hit.material = material;
+
+    // Compute UV coordinates for texture mapping
+    Vector3 p = (hit.point - center).normalise(); // Point on unit sphere
+    float u = 0.5f + (std::atan2(p.z, p.x) / (2.0f * M_PI));
+    float v = 0.5f - (std::asin(p.y) / M_PI);
+
+    hit.u = u;
+    hit.v = v;
 
     return true;
 }
