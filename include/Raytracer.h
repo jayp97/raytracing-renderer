@@ -15,8 +15,8 @@ class BlinnPhongShader;
 class Raytracer
 {
 public:
-    // Default constructor
-    Raytracer();
+    // Constructor with width and height
+    Raytracer(int width, int height);
 
     // Render the scene and save the output image
     void render(const Scene &scene, const std::string &outputFilename);
@@ -26,6 +26,8 @@ public:
 
     // Access the rendered image (for testing purposes)
     Image getImage() const { return image; }
+
+    Color getPixelColor(int x, int y) const;
 
 private:
     Image image;

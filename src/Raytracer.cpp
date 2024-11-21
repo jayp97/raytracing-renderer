@@ -3,7 +3,7 @@
 #include <iostream>
 #include <algorithm>
 
-Raytracer::Raytracer()
+Raytracer::Raytracer(int width, int height) : image(width, height)
 {
     // Initialization if necessary
 }
@@ -35,8 +35,8 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
 
             if (isBinaryMode)
             {
-                // If binary mode, set color to white on intersection, else black
-                color = (color != Color(0, 0, 0)) ? Color(1, 1, 1) : Color(0, 0, 0);
+                // If binary mode, set color to white on intersection, else to background color
+                color = (color != scene.backgroundColor) ? Color(1, 1, 1) : scene.backgroundColor;
             }
 
             image.setPixel(x, y, color);
@@ -133,4 +133,9 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShade
         // No intersection; return the scene's background color (tone-mapped)
         return scene.backgroundColor.toneMap();
     }
+}
+
+Color Raytracer::getPixelColor(int x, int y) const
+{
+    return image.getPixel(x, y);
 }

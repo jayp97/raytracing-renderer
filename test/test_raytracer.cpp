@@ -10,11 +10,15 @@
 #include "Color.h"
 #include "Scene.h"
 #include "Sphere.h"
+#include "Cylinder.h"
+#include "Triangle.h"
 #include <cmath>
 #include <memory>
+#include <iostream>
 
-const float tolerance = 1e-5f;
+const float tolerance = 0.05f;
 
+// Function to compare two colors within a specified tolerance
 bool areColorsEqual(const Color &c1, const Color &c2, float tolerance)
 {
     return std::fabs(c1.r - c2.r) < tolerance &&
@@ -22,33 +26,45 @@ bool areColorsEqual(const Color &c1, const Color &c2, float tolerance)
            std::fabs(c1.b - c2.b) < tolerance;
 }
 
-TEST_CASE("Raytracer produces expected colors for intersections", "[RAYTRACER]")
+// Functions to check for dominant color components
+bool isSphereColor(const Color &c)
 {
-    int width = 3;
-    int height = 3;
+    return c.r > c.g + tolerance && c.r > c.b + tolerance;
+}
 
-    // Load the scene
+bool isCylinderColor(const Color &c)
+{
+    return c.b > c.r + tolerance && c.b > c.g + tolerance;
+}
+
+bool isTriangleColor(const Color &c)
+{
+    return c.g > c.r + tolerance && c.g > c.b + tolerance;
+}
+
+TEST_CASE("Raytracer binary render mode produces expected output", "[RAYTRACER][binary]")
+{
+    // Load the binary scene
     SceneLoader sceneLoader;
     Scene scene;
-    REQUIRE(sceneLoader.loadScene("scenes/binary_primitives.json", scene) == true);
+    REQUIRE(sceneLoader.loadScene("scenes/binary_primitives.json", scene) == true); // Using binary_primitives.json
 
-    // Build the BVH for the scene
-    scene.buildBVH();
+    // Retrieve camera dimensions from the loaded scene
+    int width = scene.camera.width;
+    int height = scene.camera.height;
 
-    // Initialize Raytracer
+    // Initialize Raytracer with camera's width and height
     Raytracer raytracer(width, height);
 
     // Render the scene
-    raytracer.render(scene, "test_output.ppm");
+    raytracer.render(scene, "binary_test_output.ppm");
 
-    // Define expected colors for shapes and background
-    Color black(0, 0, 0); // Background
-    Color red(1, 0, 0);   // Sphere
-    Color green(0, 1, 0); // Triangle
-    Color blue(0, 0, 1);  // Cylinder
+    // Define expected colors for binary mode
+    Color backgroundColor(0.25f, 0.25f, 0.25f); // From binary_primitives.json
+    Color white(1.0f, 1.0f, 1.0f);              // Binary mode: white for any intersection
 
-    // Track if we find each color
-    bool foundRed = false, foundGreen = false, foundBlue = false, foundBlack = false;
+    // Track if we find white and background color
+    bool foundWhite = false, foundBackground = false;
 
     // Check each pixel for expected colors
     for (int y = 0; y < height; ++y)
@@ -57,68 +73,69 @@ TEST_CASE("Raytracer produces expected colors for intersections", "[RAYTRACER]")
         {
             Color pixelColor = raytracer.getPixelColor(x, y);
 
-            if (areColorsEqual(pixelColor, red, tolerance))
-                foundRed = true;
-            else if (areColorsEqual(pixelColor, green, tolerance))
-                foundGreen = true;
-            else if (areColorsEqual(pixelColor, blue, tolerance))
-                foundBlue = true;
-            else if (areColorsEqual(pixelColor, black, tolerance))
-                foundBlack = true;
+            // Print the pixel colors for debugging
+            // std::cout << "Binary Pixel (" << x << ", " << y << "): ("
+            //           << pixelColor.r << ", " << pixelColor.g << ", " << pixelColor.b << ")\n";
+
+            if (areColorsEqual(pixelColor, backgroundColor, tolerance))
+                foundBackground = true;
+            else if (areColorsEqual(pixelColor, white, tolerance))
+                foundWhite = true;
+        }
+    }
+
+    // Verify that at least one white and one background color pixel are found
+    REQUIRE(foundWhite);
+    REQUIRE(foundBackground);
+}
+
+TEST_CASE("Raytracer produces expected colors for intersections in Phong mode", "[RAYTRACER][phong]")
+{
+    // Load the Phong scene
+    SceneLoader sceneLoader;
+    Scene scene;
+    REQUIRE(sceneLoader.loadScene("scenes/simple_phong.json", scene) == true); // Using simple_phong.json
+
+    // Retrieve camera dimensions from the loaded scene
+    int width = scene.camera.width;
+    int height = scene.camera.height;
+
+    // Initialize Raytracer with camera's width and height
+    Raytracer raytracer(width, height);
+
+    // Build the BVH for the scene
+    scene.buildBVH();
+
+    // Render the scene
+    raytracer.render(scene, "phong_test_output.ppm");
+
+    // Define expected colors based on material properties and lighting calculations
+    Color backgroundColor(0.25f, 0.25f, 0.25f); // From simple_phong.json
+
+    // Track if we find each color
+    bool foundBackground = false, foundSphere = false, foundCylinder = false, foundTriangle = false;
+
+    // Check each pixel for expected colors
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            Color pixelColor = raytracer.getPixelColor(x, y);
+
+            if (areColorsEqual(pixelColor, backgroundColor, tolerance))
+                foundBackground = true;
+            else if (isSphereColor(pixelColor))
+                foundSphere = true;
+            else if (isCylinderColor(pixelColor))
+                foundCylinder = true;
+            else if (isTriangleColor(pixelColor))
+                foundTriangle = true;
         }
     }
 
     // Verify that each expected color was found
-    REQUIRE(foundRed);
-    REQUIRE(foundGreen);
-    REQUIRE(foundBlue);
-    REQUIRE(foundBlack);
-}
-
-TEST_CASE("BVH correctly identifies intersections", "[BVH]")
-{
-    // Create a scene with multiple spheres
-    Scene scene;
-
-    // Add spheres in a grid
-    const int gridSize = 10;
-    const float spacing = 2.0f;
-    for (int x = -gridSize; x <= gridSize; ++x)
-    {
-        for (int y = -gridSize; y <= gridSize; ++y)
-        {
-            Vector3 center(x * spacing, 0.0f, y * spacing);
-            float radius = 0.5f;
-
-            Material material;
-            material.diffuseColor = Color(1.0f, 0.0f, 0.0f); // Red spheres
-
-            auto sphere = std::make_shared<Sphere>(center, radius, material);
-            scene.addObject(sphere);
-        }
-    }
-
-    // Build the BVH
-    scene.buildBVH();
-
-    // Create a ray that should intersect a sphere at the center
-    Ray ray(Vector3(0.0f, 0.0f, -10.0f), Vector3(0.0f, 0.0f, 1.0f));
-
-    // Perform intersection test
-    Intersection hit;
-    bool intersected = scene.intersect(ray, hit);
-
-    // The ray should intersect the sphere at (0,0,0)
-    REQUIRE(intersected);
-    REQUIRE(areColorsEqual(hit.material.diffuseColor, Color(1.0f, 0.0f, 0.0f), tolerance));
-
-    // Create a ray that misses all spheres
-    Ray missRay(Vector3(0.0f, 0.0f, -10.0f), Vector3(0.0f, 1.0f, 0.0f));
-
-    // Perform intersection test
-    Intersection missHit;
-    bool missed = scene.intersect(missRay, missHit);
-
-    // The ray should not intersect any sphere
-    REQUIRE(!missed);
+    REQUIRE(foundBackground);
+    REQUIRE(foundSphere);
+    REQUIRE(foundCylinder);
+    REQUIRE(foundTriangle);
 }

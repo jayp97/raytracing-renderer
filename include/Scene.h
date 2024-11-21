@@ -39,28 +39,8 @@ public:
     // Method to build the BVH tree
     void buildBVH();
 
-    // Intersection method to find the closest hit
-    bool intersect(const Ray &ray, Intersection &closestHit) const
-    {
-        bool hitAnything = false;
-        float closestDistance = std::numeric_limits<float>::max();
-
-        for (const auto &object : objects)
-        {
-            Intersection hit;
-            if (object->intersect(ray, hit))
-            {
-                if (hit.distance < closestDistance)
-                {
-                    closestDistance = hit.distance;
-                    closestHit = hit;
-                    hitAnything = true;
-                }
-            }
-        }
-
-        return hitAnything;
-    }
+    // Intersection method declaration
+    bool intersect(const Ray &ray, Intersection &closestHit) const;
 
 private:
     // Private members or helper methods if needed

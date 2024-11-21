@@ -1,6 +1,7 @@
 // Triangle.cpp
 #include "Triangle.h"
-#include <cmath> // For fabs and other math functions
+#include <cmath>     // For fabs and other math functions
+#include <algorithm> // For std::min and std::max
 
 bool Triangle::intersect(const Ray &ray, Intersection &hit) const
 {
@@ -36,14 +37,15 @@ bool Triangle::intersect(const Ray &ray, Intersection &hit) const
         hit.normal = edge1.cross(edge2).normalise();
         hit.material = material;
 
-        // Compute the third barycentric coordinate
-        float w = 1.0f - u - v;
+        // Removed the unused variable 'w'
+        // float w = 1.0f - u - v;
 
-        // Interpolate UV coordinates using barycentric coordinates
-        float texU = w * uv0.x + u * uv1.x + v * uv2.x;
-        float texV = w * uv0.y + u * uv1.y + v * uv2.y;
+        // Interpolate UV coordinates using barycentric coordinates (if needed)
+        // Currently unused, but kept for potential future use
+        // float texU = (1.0f - u - v) * uv0.x + u * uv1.x + v * uv2.x;
+        // float texV = (1.0f - u - v) * uv0.y + u * uv1.y + v * uv2.y;
 
-        // Store UV coordinates in the Intersection
+        // Store barycentric coordinates in the Intersection for potential use
         hit.u = u;
         hit.v = v;
 

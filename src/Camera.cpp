@@ -1,8 +1,9 @@
 #include "Camera.h"
 #include <cmath>
+#include <iostream>
 
 Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure)
-    : position(position), exposure(exposure), width(width), height(height)
+    : position(position), lookAt(lookAt), exposure(exposure), width(width), height(height)
 {
     // Calculate aspect ratio from width and height
     aspectRatio = static_cast<float>(width) / height;
@@ -29,5 +30,8 @@ Ray Camera::generateRay(float pixelX, float pixelY) const
     // Calculate the direction of the ray through the pixel
     Vector3 direction = (forward + right * x + up * y).normalise();
 
-    return Ray(position, direction);
+    Ray ray(position, direction);
+    // std::cout << "Generated Ray Origin: (" << ray.origin.x << ", " << ray.origin.y << ", " << ray.origin.z << ") "
+    //           << "Direction: (" << ray.direction.x << ", " << ray.direction.y << ", " << ray.direction.z << ")\n";
+    return ray;
 }

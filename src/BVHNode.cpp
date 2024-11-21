@@ -53,6 +53,9 @@ BVHNode::BVHNode(const std::vector<std::shared_ptr<Object>> &objects, size_t sta
         box = left->box;
         box.expand(right->box);
     }
+
+    // std::cout << "BVH Node BoundingBox: Min(" << box.getMin().x << ", " << box.getMin().y << ", " << box.getMin().z
+    //           << ") Max(" << box.getMax().x << ", " << box.getMax().y << ", " << box.getMax().z << ")\n";
 }
 
 bool BVHNode::intersect(const Ray &ray, Intersection &hit) const

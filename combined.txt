@@ -1,0 +1,2756 @@
+// Cylinder.cpp
+#include "Cylinder.h"
+#include <cmath>
+#include <limits>
+
+// Constructor with Material parameter
+Cylinder::Cylinder(const Vector3 &c, const Vector3 &a, float r, float h, const Material &m)
+    : center(c), axis(a.normalise()), radius(r), height(h), material(m) {}
+
+// Method to check ray-cylinder intersection and populate Intersection
+bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
+{
+    Vector3 oc = ray.origin - center;
+
+    // Components perpendicular to the cylinder axis
+    Vector3 rayDirPerp = ray.direction - axis * ray.direction.dot(axis);
+    Vector3 ocPerp = oc - axis * oc.dot(axis);
+
+    float a = rayDirPerp.dot(rayDirPerp);
+    float b = 2.0f * rayDirPerp.dot(ocPerp);
+    float c = ocPerp.dot(ocPerp) - radius * radius;
+
+    float discriminant = b * b - 4 * a * c;
+    bool hitCylinderSide = false;
+    float tSide = std::numeric_limits<float>::max();
+
+    // Check for intersection with the side surface of the cylinder
+    if (discriminant >= 0)
+    {
+        float sqrtDisc = std::sqrt(discriminant);
+        float t1 = (-b - sqrtDisc) / (2.0f * a);
+        float t2 = (-b + sqrtDisc) / (2.0f * a);
+
+        for (float tTemp : {t1, t2})
+        {
+            if (tTemp > 1e-4f) // Avoid self-intersection
+            {
+                Vector3 point = ray.origin + tTemp * ray.direction;
+                float heightCheck = (point - center).dot(axis);
+                if (heightCheck >= 0 && heightCheck <= height)
+                {
+                    if (tTemp < tSide)
+                    {
+                        tSide = tTemp;
+                        hitCylinderSide = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Initialize to no intersection
+    bool hitAnything = false;
+    float tFinal = std::numeric_limits<float>::max();
+
+    // If intersection with side surface is found
+    if (hitCylinderSide && tSide < tFinal)
+    {
+        tFinal = tSide;
+        hit.point = ray.origin + tFinal * ray.direction;
+        hit.normal = getNormal(hit.point);
+        hit.material = material;
+        hit.distance = tFinal;
+
+        // Compute UV coordinates for the cylinder side
+        Vector3 v = hit.point - center;
+        float projection = v.dot(axis);
+        Vector3 circleCenter = center + axis * projection;
+        Vector3 d = (hit.point - circleCenter);
+
+        float theta = std::atan2(d.z, d.x);
+        if (theta < 0.0f)
+            theta += 2.0f * M_PI;
+
+        float u = theta / (2.0f * M_PI);     // Range [0,1]
+        float v_coord = projection / height; // Range [0,1] along the height
+
+        hit.u = u;
+        hit.v = v_coord;
+
+        hitAnything = true;
+    }
+
+    // Prepare orthogonal vectors for cap UV mapping
+    Vector3 uDir, vDir;
+    if (std::fabs(axis.x) > std::fabs(axis.y))
+        uDir = Vector3(-axis.z, 0, axis.x).normalise();
+    else
+        uDir = Vector3(0, axis.z, -axis.y).normalise();
+    vDir = axis.cross(uDir).normalise();
+
+    // Check for intersection with the top and bottom caps
+    float tCap;
+    Vector3 capCenter;
+    Vector3 capNormal;
+
+    // Top cap
+    capCenter = center + axis * height;
+    capNormal = axis;
+    float denom = ray.direction.dot(capNormal);
+    if (std::fabs(denom) > 1e-6f)
+    {
+        tCap = (capCenter - ray.origin).dot(capNormal) / denom;
+        if (tCap > 1e-4f && tCap < tFinal)
+        {
+            Vector3 pCap = ray.origin + tCap * ray.direction;
+            Vector3 v = pCap - capCenter;
+            if (v.dot(v) <= radius * radius)
+            {
+                tFinal = tCap;
+                hit.point = pCap;
+                hit.normal = capNormal;
+                hit.material = material;
+                hit.distance = tFinal;
+
+                // Compute UV coordinates for the top cap
+                Vector3 localPoint = pCap - capCenter;
+                float u = (localPoint.dot(uDir) / radius) * 0.5f + 0.5f;
+                float v_coord = (localPoint.dot(vDir) / radius) * 0.5f + 0.5f;
+
+                hit.u = u;
+                hit.v = v_coord;
+
+                hitAnything = true;
+            }
+        }
+    }
+
+    // Bottom cap
+    capCenter = center;
+    capNormal = -axis;
+    denom = ray.direction.dot(capNormal);
+    if (std::fabs(denom) > 1e-6f)
+    {
+        tCap = (capCenter - ray.origin).dot(capNormal) / denom;
+        if (tCap > 1e-4f && tCap < tFinal)
+        {
+            Vector3 pCap = ray.origin + tCap * ray.direction;
+            Vector3 v = pCap - capCenter;
+            if (v.dot(v) <= radius * radius)
+            {
+                tFinal = tCap;
+                hit.point = pCap;
+                hit.normal = capNormal;
+                hit.material = material;
+                hit.distance = tFinal;
+
+                // Compute UV coordinates for the bottom cap
+                Vector3 localPoint = pCap - capCenter;
+                float u = (localPoint.dot(uDir) / radius) * 0.5f + 0.5f;
+                float v_coord = (localPoint.dot(vDir) / radius) * 0.5f + 0.5f;
+
+                hit.u = u;
+                hit.v = v_coord;
+
+                hitAnything = true;
+            }
+        }
+    }
+
+    return hitAnything;
+}
+
+// Method to get the normal at a point on the cylinder
+Vector3 Cylinder::getNormal(const Vector3 &point) const
+{
+    Vector3 v = point - center;
+    float projection = v.dot(axis);
+    Vector3 projectionPoint = center + axis * projection;
+
+    // Check if the point is on the side or caps
+    if (projection >= 0 && projection <= height)
+    {
+        // Side surface
+        Vector3 normal = (point - projectionPoint).normalise();
+        return normal;
+    }
+    else if (std::fabs(projection) < 1e-4f)
+    {
+        // Bottom cap
+        return -axis;
+    }
+    else
+    {
+        // Top cap
+        return axis;
+    }
+}
+
+BoundingBox Cylinder::getBoundingBox() const
+{
+    // Approximate the bounding box by considering the cylinder's axis-aligned dimensions
+    Vector3 radiusVec(radius, radius, radius);
+
+    // Compute base and top centers
+    Vector3 baseCenter = center;
+    Vector3 topCenter = center + axis * height;
+
+    // Initialize min and max points
+    Vector3 minPoint = baseCenter - radiusVec;
+    Vector3 maxPoint = baseCenter + radiusVec;
+
+    // Expand to include the top
+    minPoint = Vector3::min(minPoint, topCenter - radiusVec);
+    maxPoint = Vector3::max(maxPoint, topCenter + radiusVec);
+
+    return BoundingBox(minPoint, maxPoint);
+}
+// SceneLoader.cpp
+
+#include "SceneLoader.h"
+#include "Sphere.h"
+#include "Cylinder.h"
+#include "Triangle.h"
+#include "Material.h"
+#include "Color.h"
+#include "CheckerboardTexture.h"
+#include <fstream>
+#include <iostream>
+
+// Loads the entire scene from a JSON file and populates the Scene object
+bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
+{
+    std::ifstream sceneFile(filePath);
+    if (!sceneFile.is_open())
+    {
+        std::cerr << "Could not open file: " << filePath << std::endl;
+        return false;
+    }
+
+    json sceneData;
+    try
+    {
+        sceneFile >> sceneData;
+    }
+    catch (const json::parse_error &e)
+    {
+        std::cerr << "JSON parse error: " << e.what() << std::endl;
+        return false;
+    }
+
+    // Load Render Mode
+    scene.renderMode = sceneData.value("rendermode", "binary");
+
+    // Load nbounces if available
+    scene.nbounces = sceneData.value("nbounces", 1);
+
+    // Load Camera
+    if (sceneData.contains("camera"))
+    {
+        scene.camera = loadCamera(sceneData["camera"]);
+    }
+    else
+    {
+        std::cerr << "Camera data missing in JSON file." << std::endl;
+        return false;
+    }
+
+    // Load Background Color
+    if (sceneData.contains("scene") && sceneData["scene"].contains("backgroundcolor"))
+    {
+        auto bg = sceneData["scene"]["backgroundcolor"];
+        if (bg.is_array() && bg.size() == 3)
+        {
+            scene.backgroundColor = Color(bg[0], bg[1], bg[2]);
+        }
+        else
+        {
+            std::cerr << "Invalid backgroundColor format. Using default." << std::endl;
+        }
+    }
+
+    // Load Lights
+    if (sceneData["scene"].contains("lightsources"))
+    {
+        scene.lights = loadLights(sceneData["scene"]["lightsources"]);
+    }
+
+    // Load Objects
+    if (sceneData["scene"].contains("shapes"))
+    {
+        auto shapesData = sceneData["scene"]["shapes"];
+        for (const auto &shape : shapesData)
+        {
+            auto obj = loadObject(shape);
+            if (obj)
+            {
+                scene.addObject(obj);
+            }
+        }
+    }
+    else
+    {
+        std::cerr << "Shapes data missing in JSON file." << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+// Load Camera
+Camera SceneLoader::loadCamera(const json &cameraData)
+{
+    Vector3 position(cameraData["position"][0], cameraData["position"][1], cameraData["position"][2]);
+    Vector3 lookAt(cameraData["lookAt"][0], cameraData["lookAt"][1], cameraData["lookAt"][2]);
+    Vector3 upVector(cameraData["upVector"][0], cameraData["upVector"][1], cameraData["upVector"][2]);
+    float fov = cameraData["fov"];
+    int width = cameraData["width"];
+    int height = cameraData["height"];
+    float exposure = cameraData.value("exposure", 1.0f); // Default exposure if not specified
+
+    return Camera(position, lookAt, upVector, fov, width, height, exposure);
+}
+
+// Loads light sources
+std::vector<Light> SceneLoader::loadLights(const json &lightsData)
+{
+    std::vector<Light> lights;
+    for (const auto &light : lightsData)
+    {
+        if (light.contains("position") && light.contains("intensity"))
+        {
+            Vector3 position(light["position"][0], light["position"][1], light["position"][2]);
+            Color intensity(light["intensity"][0], light["intensity"][1], light["intensity"][2]);
+            lights.emplace_back(position, intensity); // Assuming a Light constructor that takes position and intensity
+        }
+        else
+        {
+            std::cerr << "Invalid light source format. Skipping." << std::endl;
+        }
+    }
+    return lights;
+}
+
+// Helper to load material properties
+Material SceneLoader::loadMaterial(const json &materialData)
+{
+    Material material;
+    // Map JSON fields to Material properties
+    // Scene.json uses:
+    // "ks": specular coefficient (float)
+    // "kd": diffuse coefficient (float)
+    // "specularexponent": specular exponent (float)
+    // "diffusecolor": [r, g, b]
+    // "specularcolor": [r, g, b]
+    // "isreflective": bool
+    // "reflectivity": float
+    // "isrefractive": bool
+    // "refractiveindex": float
+
+    // Set diffuse color
+    if (materialData.contains("diffusecolor") && materialData["diffusecolor"].is_array() && materialData["diffusecolor"].size() == 3)
+    {
+        material.diffuseColor = Color(materialData["diffusecolor"][0], materialData["diffusecolor"][1], materialData["diffusecolor"][2]);
+    }
+    else
+    {
+        // Default diffuse color
+        material.diffuseColor = Color(0.5f, 0.5f, 0.5f);
+    }
+
+    // Set specular color
+    if (materialData.contains("specularcolor") && materialData["specularcolor"].is_array() && materialData["specularcolor"].size() == 3)
+    {
+        material.specularColor = Color(materialData["specularcolor"][0], materialData["specularcolor"][1], materialData["specularcolor"][2]);
+    }
+    else
+    {
+        // Default specular color
+        material.specularColor = Color(1.0f, 1.0f, 1.0f);
+    }
+
+    // Set shininess
+    if (materialData.contains("specularexponent"))
+    {
+        material.specularExponent = materialData["specularexponent"];
+    }
+    else
+    {
+        // Default shininess
+        material.specularExponent = 32.0f;
+    }
+
+    // Load texture if present
+    if (materialData.contains("texture"))
+    {
+        auto textureData = materialData["texture"];
+        if (textureData.contains("type"))
+        {
+            std::string textureType = textureData["type"];
+            if (textureType == "checkerboard")
+            {
+                Color color1(1.0f, 1.0f, 1.0f);
+                Color color2(0.0f, 0.0f, 0.0f);
+                float scale = 1.0f;
+                if (textureData.contains("color1") && textureData["color1"].is_array() && textureData["color1"].size() == 3)
+                {
+                    color1 = Color(textureData["color1"][0], textureData["color1"][1], textureData["color1"][2]);
+                }
+                if (textureData.contains("color2") && textureData["color2"].is_array() && textureData["color2"].size() == 3)
+                {
+                    color2 = Color(textureData["color2"][0], textureData["color2"][1], textureData["color2"][2]);
+                }
+                if (textureData.contains("scale"))
+                {
+                    scale = textureData["scale"];
+                }
+                material.texture = std::make_shared<CheckerboardTexture>(color1, color2, scale);
+            }
+            else
+            {
+                std::cerr << "Unknown texture type: " << textureType << ". Skipping texture." << std::endl;
+            }
+        }
+    }
+
+    // Set diffuse coefficient
+    material.kd = materialData.value("kd", 0.9f);
+
+    // Set specular coefficient
+    material.ks = materialData.value("ks", 0.1f);
+
+    // Derive ambient color as diffuseColor * kd
+    material.ambient = material.diffuseColor * material.kd;
+
+    // Set reflectivity
+    material.isReflective = materialData.value("isreflective", false);
+    material.reflectivity = materialData.value("reflectivity", 0.0f);
+
+    // Set refractive properties
+    material.isRefractive = materialData.value("isrefractive", false);
+    material.refractiveIndex = materialData.value("refractiveindex", 1.0f);
+
+    return material;
+}
+
+// Loads a single object (Sphere, Cylinder, Triangle)
+std::shared_ptr<Object> SceneLoader::loadObject(const json &shapeData)
+{
+    if (!shapeData.contains("type"))
+    {
+        std::cerr << "Shape type missing. Skipping object." << std::endl;
+        return nullptr;
+    }
+
+    std::string type = shapeData["type"];
+    Material material = Material(); // Default material
+    if (shapeData.contains("material"))
+    {
+        material = loadMaterial(shapeData["material"]);
+    }
+
+    if (type == "sphere")
+    {
+        if (shapeData.contains("center") && shapeData.contains("radius"))
+        {
+            Vector3 center(shapeData["center"][0], shapeData["center"][1], shapeData["center"][2]);
+            float radius = shapeData["radius"];
+            return std::make_shared<Sphere>(center, radius, material);
+        }
+        else
+        {
+            std::cerr << "Invalid sphere format. Skipping object." << std::endl;
+            return nullptr;
+        }
+    }
+    else if (type == "cylinder")
+    {
+        if (shapeData.contains("center") && shapeData.contains("axis") && shapeData.contains("radius") && shapeData.contains("height"))
+        {
+            Vector3 center(shapeData["center"][0], shapeData["center"][1], shapeData["center"][2]);
+            Vector3 axis(shapeData["axis"][0], shapeData["axis"][1], shapeData["axis"][2]);
+            float radius = shapeData["radius"];
+            float height = shapeData["height"];
+            return std::make_shared<Cylinder>(center, axis, radius, height, material);
+        }
+        else
+        {
+            std::cerr << "Invalid cylinder format. Skipping object." << std::endl;
+            return nullptr;
+        }
+    }
+    else if (type == "triangle")
+    {
+        if (shapeData.contains("v0") && shapeData.contains("v1") && shapeData.contains("v2"))
+        {
+            Vector3 v0(shapeData["v0"][0], shapeData["v0"][1], shapeData["v0"][2]);
+            Vector3 v1(shapeData["v1"][0], shapeData["v1"][1], shapeData["v1"][2]);
+            Vector3 v2(shapeData["v2"][0], shapeData["v2"][1], shapeData["v2"][2]);
+
+            // Load UV coordinates if available
+            Vector3 uv0(0.0f, 0.0f, 0.0f);
+            Vector3 uv1(1.0f, 0.0f, 0.0f);
+            Vector3 uv2(0.0f, 1.0f, 0.0f);
+            if (shapeData.contains("uv0") && shapeData["uv0"].is_array() && shapeData["uv0"].size() >= 2)
+            {
+                uv0 = Vector3(shapeData["uv0"][0], shapeData["uv0"][1], 0.0f);
+            }
+            if (shapeData.contains("uv1") && shapeData["uv1"].is_array() && shapeData["uv1"].size() >= 2)
+            {
+                uv1 = Vector3(shapeData["uv1"][0], shapeData["uv1"][1], 0.0f);
+            }
+            if (shapeData.contains("uv2") && shapeData["uv2"].is_array() && shapeData["uv2"].size() >= 2)
+            {
+                uv2 = Vector3(shapeData["uv2"][0], shapeData["uv2"][1], 0.0f);
+            }
+
+            return std::make_shared<Triangle>(v0, v1, v2, material, uv0, uv1, uv2);
+        }
+        else
+        {
+            std::cerr << "Invalid triangle format. Skipping object." << std::endl;
+            return nullptr;
+        }
+    }
+    else
+    {
+        std::cerr << "Unknown shape type: " << type << ". Skipping object." << std::endl;
+        return nullptr;
+    }
+}
+
+#include "Image.h"
+#include <fstream>
+
+Image::Image() : width(0), height(0), pixels()
+{
+    // Initialize to an empty image or set default values if necessary
+}
+
+Image::Image(int width, int height) : width(width), height(height), pixels(width * height) {}
+
+void Image::setPixel(int x, int y, const Color &color)
+{
+    if (x >= 0 && x < width && y >= 0 && y < height)
+    {
+        pixels[y * width + x] = color;
+    }
+}
+
+Color Image::getPixel(int x, int y) const
+{
+    if (x >= 0 && x < width && y >= 0 && y < height)
+    {
+        return pixels[y * width + x];
+    }
+    return Color(); // Return default black color if out of bounds
+}
+
+bool Image::saveAsPPM(const std::string &filename) const
+{
+    std::ofstream file(filename);
+    if (!file.is_open())
+        return false;
+
+    file << "P3\n"
+         << width << " " << height << "\n255\n";
+    for (const auto &color : pixels)
+    {
+        file << static_cast<int>(255.99 * color.r) << " "
+             << static_cast<int>(255.99 * color.g) << " "
+             << static_cast<int>(255.99 * color.b) << "\n";
+    }
+    file.close();
+    return true;
+}
+
+// Scene.cpp
+#include "Scene.h"
+#include "BVHNode.h"
+#include <limits>
+
+// Build the BVH tree
+void Scene::buildBVH()
+{
+    if (!objects.empty())
+    {
+        bvhRoot = std::make_shared<BVHNode>(objects, 0, objects.size());
+    }
+    else
+    {
+        bvhRoot = nullptr;
+    }
+}
+
+// Intersection method using BVH traversal
+bool Scene::intersect(const Ray &ray, Intersection &closestHit) const
+{
+    closestHit.distance = std::numeric_limits<float>::max();
+
+    if (bvhRoot)
+    {
+        return bvhRoot->intersect(ray, closestHit);
+    }
+    else
+    {
+        // Fallback to brute-force if BVH is not built
+        bool hitAnything = false;
+        for (const auto &object : objects)
+        {
+            Intersection tempHit;
+            if (object->intersect(ray, tempHit))
+            {
+                if (tempHit.distance < closestHit.distance)
+                {
+                    closestHit = tempHit;
+                    hitAnything = true;
+                }
+            }
+        }
+        return hitAnything;
+    }
+}
+
+// Vector3.cpp
+#include "Vector3.h"
+#include <cmath> // for std::fabs
+
+// Addition
+Vector3 Vector3::operator+(const Vector3 &other) const
+{
+    return Vector3(x + other.x, y + other.y, z + other.z);
+}
+
+// Subtraction
+Vector3 Vector3::operator-(const Vector3 &other) const
+{
+    return Vector3(x - other.x, y - other.y, z - other.z);
+}
+
+// Scalar multiplication
+Vector3 Vector3::operator*(float scalar) const
+{
+    return Vector3(x * scalar, y * scalar, z * scalar);
+}
+
+// Scalar division
+Vector3 Vector3::operator/(float scalar) const
+{
+    return Vector3(x / scalar, y / scalar, z / scalar);
+}
+
+// Compound Assignment Operators
+Vector3 &Vector3::operator+=(const Vector3 &other)
+{
+    x += other.x;
+    y += other.y;
+    z += other.z;
+    return *this;
+}
+
+Vector3 &Vector3::operator-=(const Vector3 &other)
+{
+    x -= other.x;
+    y -= other.y;
+    z -= other.z;
+    return *this;
+}
+
+Vector3 &Vector3::operator*=(float scalar)
+{
+    x *= scalar;
+    y *= scalar;
+    z *= scalar;
+    return *this;
+}
+
+Vector3 &Vector3::operator/=(float scalar)
+{
+    x /= scalar;
+    y /= scalar;
+    z /= scalar;
+    return *this;
+}
+
+// Unary Minus Operator
+Vector3 Vector3::operator-() const
+{
+    return Vector3(-x, -y, -z);
+}
+
+// Dot product
+float Vector3::dot(const Vector3 &other) const
+{
+    return x * other.x + y * other.y + z * other.z;
+}
+
+// Cross product
+Vector3 Vector3::cross(const Vector3 &other) const
+{
+    return Vector3(
+        y * other.z - z * other.y,
+        z * other.x - x * other.z,
+        x * other.y - y * other.x);
+}
+
+// Normalize
+Vector3 Vector3::normalise() const
+{
+    float len = length();
+    if (len == 0.0f)
+        return Vector3(0.0f, 0.0f, 0.0f); // Prevent division by zero
+    return (*this) / len;
+}
+
+// Length
+float Vector3::length() const
+{
+    return std::sqrt(x * x + y * y + z * z);
+}
+
+// Length Squared
+float Vector3::lengthSquared() const
+{
+    return x * x + y * y + z * z;
+}
+
+// Clamp
+Vector3 Vector3::clamp(float min_val, float max_val) const
+{
+    float clampedX = std::fmax(min_val, std::fmin(x, max_val));
+    float clampedY = std::fmax(min_val, std::fmin(y, max_val));
+    float clampedZ = std::fmax(min_val, std::fmin(z, max_val));
+    return Vector3(clampedX, clampedY, clampedZ);
+}
+
+// Equality operator with tolerance for floating-point precision
+bool Vector3::operator==(const Vector3 &other) const
+{
+    const float tolerance = 1e-5f;
+    return (std::fabs(x - other.x) < tolerance) &&
+           (std::fabs(y - other.y) < tolerance) &&
+           (std::fabs(z - other.z) < tolerance);
+}
+
+// Inequality operator
+bool Vector3::operator!=(const Vector3 &other) const
+{
+    return !(*this == other);
+}
+
+// Element-wise multiplication
+Vector3 Vector3::operator*(const Vector3 &other) const
+{
+    return Vector3(x * other.x, y * other.y, z * other.z);
+}
+
+// operator[] for non-const access
+float &Vector3::operator[](int index)
+{
+    if (index == 0)
+        return x;
+    else if (index == 1)
+        return y;
+    else if (index == 2)
+        return z;
+    else
+    {
+        throw std::out_of_range("Index out of range for Vector3");
+    }
+}
+
+// operator[] for const access
+const float &Vector3::operator[](int index) const
+{
+    if (index == 0)
+        return x;
+    else if (index == 1)
+        return y;
+    else if (index == 2)
+        return z;
+    else
+    {
+        throw std::out_of_range("Index out of range for Vector3");
+    }
+}
+
+// Static methods for component-wise min and max
+Vector3 Vector3::min(const Vector3 &a, const Vector3 &b)
+{
+    return Vector3(
+        std::min(a.x, b.x),
+        std::min(a.y, b.y),
+        std::min(a.z, b.z));
+}
+
+Vector3 Vector3::max(const Vector3 &a, const Vector3 &b)
+{
+    return Vector3(
+        std::max(a.x, b.x),
+        std::max(a.y, b.y),
+        std::max(a.z, b.z));
+}
+
+// Reflect
+Vector3 Vector3::reflect(const Vector3 &normal) const
+{
+    return *this - normal * (2.0f * this->dot(normal));
+}
+
+// Refraction
+Vector3 Vector3::refract(const Vector3 &normal, float eta) const
+{
+    // Snell's Law: eta = n_i / n_t
+    float cosi = std::max(-1.0f, std::min(1.0f, this->dot(normal)));
+    float etai = 1.0f, etat = eta;
+    Vector3 n = normal;
+    if (cosi < 0)
+    {
+        cosi = -cosi;
+    }
+    else
+    {
+        std::swap(etai, etat);
+        n = -normal;
+    }
+    float eta_ratio = etai / etat;
+    float k = 1.0f - eta_ratio * eta_ratio * (1.0f - cosi * cosi);
+    if (k < 0)
+        return Vector3(0.0f, 0.0f, 0.0f); // Total internal reflection
+    else
+        return (*this) * eta_ratio + n * (eta_ratio * cosi - std::sqrt(k));
+}
+
+// Debug print method
+void Vector3::print() const
+{
+    std::cout << "Vector3(" << x << ", " << y << ", " << z << ")" << std::endl;
+}
+
+// Stream insertion operator for outputting to std::ostream
+std::ostream &operator<<(std::ostream &os, const Vector3 &v)
+{
+    os << "Vector3(" << v.x << ", " << v.y << ", " << v.z << ")";
+    return os;
+}
+
+#include "Raytracer.h"
+#include "BlinnPhongShader.h"
+#include <iostream>
+#include <algorithm>
+
+Raytracer::Raytracer(int width, int height) : image(width, height)
+{
+    // Initialization if necessary
+}
+
+void Raytracer::render(const Scene &scene, const std::string &outputFilename)
+{
+    const Camera &camera = scene.camera;
+    int width = camera.width;
+    int height = camera.height;
+    image = Image(width, height);
+
+    bool isBinaryMode = scene.renderMode == "binary";
+
+    // Initialize the shader once
+    BlinnPhongShader shader(scene, scene.camera.position);
+
+    // Iterate over each pixel
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            Ray ray = camera.generateRay(static_cast<float>(x), static_cast<float>(y));
+
+            // Trace the ray and compute the color
+            Color color = trace(ray, scene, shader, 0);
+
+            // Apply tone mapping
+            color = color.toneMap();
+
+            if (isBinaryMode)
+            {
+                // If binary mode, set color to white on intersection, else to background color
+                color = (color != scene.backgroundColor) ? Color(1, 1, 1) : scene.backgroundColor;
+            }
+
+            image.setPixel(x, y, color);
+        }
+
+        // Optional: Print progress every 100 lines
+        if (y % 100 == 0)
+        {
+            std::cout << "Rendered " << y << " / " << height << " lines." << std::endl;
+        }
+    }
+
+    // Save the rendered image to the specified file
+    image.saveAsPPM(outputFilename);
+
+    std::cout << "Rendering completed. Image saved to " << outputFilename << std::endl;
+}
+
+Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth) const
+{
+    if (depth >= scene.nbounces)
+        return Color(0, 0, 0); // Base case: no further contribution
+
+    Intersection closestHit;
+    bool hit = scene.intersect(ray, closestHit);
+
+    if (hit)
+    {
+        // Compute the color at the intersection point using the shader
+        Color shadedColor = shader.shade(closestHit);
+
+        // Initialize accumulated color with the shaded color
+        Color accumulatedColor = shadedColor;
+
+        // Handle reflections if the material is reflective
+        if (closestHit.material.isReflective && closestHit.material.reflectivity > 0.0f)
+        {
+            Vector3 reflectedDir = ray.direction.reflect(closestHit.normal).normalise();
+            Ray reflectedRay(closestHit.point + closestHit.normal * 1e-4f, reflectedDir);
+            Color reflectedColor = trace(reflectedRay, scene, shader, depth + 1);
+
+            // Blend the reflected color with the current accumulated color
+            float reflectivity = closestHit.material.reflectivity;
+            accumulatedColor = accumulatedColor * (1.0f - reflectivity) + reflectedColor * reflectivity;
+        }
+
+        // Handle refractions if the material is refractive
+        if (closestHit.material.isRefractive)
+        {
+            float transmission = 1.0f - closestHit.material.reflectivity;
+            if (transmission > 0.0f)
+            {
+                float eta = closestHit.material.refractiveIndex;
+                Vector3 normal = closestHit.normal;
+                float cosi = normal.dot(ray.direction);
+                float etai = 1.0f;
+                float etat = eta;
+
+                if (cosi > 0)
+                {
+                    // Ray is inside the object, swap indices and invert normal
+                    std::swap(etai, etat);
+                    normal = -normal;
+                }
+                float etaRatio = etai / etat;
+
+                // Calculate the refracted direction
+                float k = 1 - etaRatio * etaRatio * (1 - cosi * cosi);
+                Vector3 refractedDir;
+                if (k < 0)
+                {
+                    // Total internal reflection
+                    refractedDir = ray.direction.reflect(normal);
+                }
+                else
+                {
+                    refractedDir = ray.direction * etaRatio + normal * (etaRatio * cosi - sqrtf(k));
+                }
+
+                refractedDir = refractedDir.normalise();
+                Ray refractedRay(closestHit.point - normal * 1e-4f, refractedDir);
+                Color refractedColor = trace(refractedRay, scene, shader, depth + 1);
+
+                // Blend the refracted color with the accumulated color
+                accumulatedColor = accumulatedColor * (1.0f - transmission) + refractedColor * transmission;
+            }
+        }
+
+        // Return the tone-mapped color
+        return accumulatedColor.toneMap();
+    }
+    else
+    {
+        // No intersection; return the scene's background color (tone-mapped)
+        return scene.backgroundColor.toneMap();
+    }
+}
+
+Color Raytracer::getPixelColor(int x, int y) const
+{
+    return image.getPixel(x, y);
+}
+#include "Camera.h"
+#include <cmath>
+#include <iostream>
+
+Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure)
+    : position(position), lookAt(lookAt), exposure(exposure), width(width), height(height)
+{
+    // Calculate aspect ratio from width and height
+    aspectRatio = static_cast<float>(width) / height;
+
+    // Calculate the forward, right, and up directions based on lookAt and up
+    forward = (lookAt - position).normalise();
+    right = forward.cross(up).normalise();
+    this->up = right.cross(forward).normalise();
+
+    // Convert the field of view to radians
+    this->fov = (fov * M_PI) / 180.0f;
+}
+
+// Generate a ray from the camera through the viewport at the specified pixel coordinates
+Ray Camera::generateRay(float pixelX, float pixelY) const
+{
+    // Calculate the viewport scaling based on the FOV
+    float scale = std::tan(fov / 2.0f);
+
+    // Normalize pixel coordinates to the range [-1, 1] for viewport space
+    float x = (2 * (pixelX + 0.5f) / width - 1) * aspectRatio * scale;
+    float y = (1 - 2 * (pixelY + 0.5f) / height) * scale;
+
+    // Calculate the direction of the ray through the pixel
+    Vector3 direction = (forward + right * x + up * y).normalise();
+
+    Ray ray(position, direction);
+    std::cout << "Generated Ray Origin: (" << ray.origin.x << ", " << ray.origin.y << ", " << ray.origin.z << ") "
+              << "Direction: (" << ray.direction.x << ", " << ray.direction.y << ", " << ray.direction.z << ")\n";
+    return ray;
+}
+
+#include "Light.h"
+#include "Color.h"
+
+// Constructor implementation
+Light::Light(const Vector3 &position, const Color &intensity)
+    : position(position), intensity(intensity) {}
+
+#include "Ray.h"
+
+// Constructor to initialise the ray with an origin and a direction
+Ray::Ray(const Vector3 &origin, const Vector3 &direction) : origin(origin), direction(direction.normalise()) {}
+
+// Method to get point along the ray: origin + t * direction
+Vector3 Ray::at(float t) const
+{
+    return origin + direction * t;
+};
+// CheckerboardTexture.cpp
+#include "CheckerboardTexture.h"
+#include <cmath>
+
+Color CheckerboardTexture::getColor(float u, float v) const
+{
+    int checkU = static_cast<int>(std::floor(u * scale)) % 2;
+    int checkV = static_cast<int>(std::floor(v * scale)) % 2;
+    if ((checkU + checkV) % 2 == 0)
+    {
+        return color1;
+    }
+    else
+    {
+        return color2;
+    }
+}
+
+// BlinnPhongShader.cpp
+#include "BlinnPhongShader.h"
+#include "Ray.h"
+#include <algorithm>
+#include <cmath>
+
+BlinnPhongShader::BlinnPhongShader(const Scene &scene, const Vector3 &cameraPos)
+    : scene(scene), cameraPosition(cameraPos) {}
+
+Color BlinnPhongShader::shade(const Intersection &hit) const
+{
+    Color finalColor(0, 0, 0); // Initialize to black
+
+    // Use texture color if available
+    Color diffuseColor = hit.material.diffuseColor;
+    if (hit.material.texture)
+    {
+        diffuseColor = hit.material.texture->getColor(hit.u, hit.v);
+    }
+
+    for (const auto &light : scene.lights)
+    {
+        Vector3 lightDir = (light.getPosition() - hit.point).normalise();
+        float lightDistance = (light.getPosition() - hit.point).length();
+
+        if (isInShadow(hit.point, lightDir, lightDistance))
+        {
+            finalColor += hit.material.ambient;
+            continue;
+        }
+
+        Vector3 viewDir = (cameraPosition - hit.point).normalise();
+        Vector3 halfDir = (lightDir + viewDir).normalise();
+        Vector3 normal = hit.normal.normalise();
+
+        // Recalculate ambient color using texture
+        Color ambient = diffuseColor * hit.material.kd;
+
+        float diff = std::max(normal.dot(lightDir), 0.0f);
+        Color diffuse = diffuseColor * hit.material.kd * diff * light.getIntensity();
+
+        float specAngle = std::max(normal.dot(halfDir), 0.0f);
+        float spec = std::pow(specAngle, hit.material.specularExponent);
+        Color specular = hit.material.specularColor * hit.material.ks * spec * light.getIntensity();
+
+        finalColor += ambient + diffuse + specular;
+    }
+
+    return finalColor.clamp(0.0f, 1.0f);
+}
+
+bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir, float lightDistance) const
+{
+    const float shadowBias = 1e-3f;
+    Ray shadowRay(point + lightDir * shadowBias, lightDir);
+
+    for (const auto &object : scene.objects)
+    {
+        Intersection shadowHit;
+        if (object->intersect(shadowRay, shadowHit))
+        {
+            if (shadowHit.distance < lightDistance)
+            {
+                return true; // Point is in shadow
+            }
+        }
+    }
+
+    return false; // Point is illuminated
+}
+
+// BoundingBox.cpp
+#include "BoundingBox.h"
+#include <limits>
+#include <algorithm>
+
+BoundingBox::BoundingBox()
+    : minPoint(Vector3(std::numeric_limits<float>::max(),
+                       std::numeric_limits<float>::max(),
+                       std::numeric_limits<float>::max())),
+      maxPoint(Vector3(std::numeric_limits<float>::lowest(),
+                       std::numeric_limits<float>::lowest(),
+                       std::numeric_limits<float>::lowest())) {}
+
+BoundingBox::BoundingBox(const Vector3 &min, const Vector3 &max)
+    : minPoint(min), maxPoint(max) {}
+
+bool BoundingBox::intersect(const Ray &ray, float t_min, float t_max) const
+{
+    for (int i = 0; i < 3; ++i)
+    {
+        float invD = 1.0f / ray.direction[i];
+        float t0 = (minPoint[i] - ray.origin[i]) * invD;
+        float t1 = (maxPoint[i] - ray.origin[i]) * invD;
+        if (invD < 0.0f)
+            std::swap(t0, t1);
+        t_min = t0 > t_min ? t0 : t_min;
+        t_max = t1 < t_max ? t1 : t_max;
+        if (t_max <= t_min)
+            return false;
+    }
+    return true;
+}
+
+void BoundingBox::expand(const BoundingBox &box)
+{
+    minPoint = Vector3::min(minPoint, box.minPoint);
+    maxPoint = Vector3::max(maxPoint, box.maxPoint);
+}
+
+void BoundingBox::expand(const Vector3 &point)
+{
+    minPoint = Vector3::min(minPoint, point);
+    maxPoint = Vector3::max(maxPoint, point);
+}
+
+// BVHNode.cpp
+#include "BVHNode.h"
+#include <algorithm>
+#include <limits>
+#include <cstdlib> // For rand()
+
+BVHNode::BVHNode() : left(nullptr), right(nullptr), object(nullptr) {}
+
+BVHNode::BVHNode(const std::vector<std::shared_ptr<Object>> &objects, size_t start, size_t end)
+{
+    // Compute the bounding box for all objects in this node
+    std::vector<std::shared_ptr<Object>> sortedObjects = objects; // Copy objects
+
+    // Choose an axis to sort by (we'll cycle through axes)
+    int axis = rand() % 3;
+    auto comparator = [axis](const std::shared_ptr<Object> &a, const std::shared_ptr<Object> &b)
+    {
+        return a->getBoundingBox().getMin()[axis] < b->getBoundingBox().getMin()[axis];
+    };
+
+    size_t objectSpan = end - start;
+    if (objectSpan == 1)
+    {
+        // Leaf node
+        object = objects[start];
+        box = object->getBoundingBox();
+        left = right = nullptr;
+    }
+    else if (objectSpan == 2)
+    {
+        // Create two leaf nodes
+        if (comparator(objects[start], objects[start + 1]))
+        {
+            left = std::make_shared<BVHNode>(objects, start, start + 1);
+            right = std::make_shared<BVHNode>(objects, start + 1, start + 2);
+        }
+        else
+        {
+            left = std::make_shared<BVHNode>(objects, start + 1, start + 2);
+            right = std::make_shared<BVHNode>(objects, start, start + 1);
+        }
+        box = left->box;
+        box.expand(right->box);
+    }
+    else
+    {
+        // Sort objects and split
+        std::sort(sortedObjects.begin() + start, sortedObjects.begin() + end, comparator);
+        size_t mid = start + objectSpan / 2;
+        left = std::make_shared<BVHNode>(sortedObjects, start, mid);
+        right = std::make_shared<BVHNode>(sortedObjects, mid, end);
+
+        box = left->box;
+        box.expand(right->box);
+    }
+
+    // std::cout << "BVH Node BoundingBox: Min(" << box.getMin().x << ", " << box.getMin().y << ", " << box.getMin().z
+    //           << ") Max(" << box.getMax().x << ", " << box.getMax().y << ", " << box.getMax().z << ")\n";
+}
+
+bool BVHNode::intersect(const Ray &ray, Intersection &hit) const
+{
+    if (!box.intersect(ray, 0.001f, hit.distance))
+        return false;
+
+    if (object)
+    {
+        // Leaf node
+        return object->intersect(ray, hit);
+    }
+
+    bool hitLeft = left && left->intersect(ray, hit);
+    bool hitRight = right && right->intersect(ray, hit);
+
+    return hitLeft || hitRight;
+}
+
+// Triangle.cpp
+#include "Triangle.h"
+#include <cmath>     // For fabs and other math functions
+#include <algorithm> // For std::min and std::max
+
+bool Triangle::intersect(const Ray &ray, Intersection &hit) const
+{
+    const float EPSILON = 1e-8f;
+    Vector3 edge1 = v1 - v0;
+    Vector3 edge2 = v2 - v0;
+
+    Vector3 h = ray.direction.cross(edge2);
+    float a = edge1.dot(h);
+
+    if (std::fabs(a) < EPSILON)
+        return false;
+
+    float f = 1.0f / a;
+    Vector3 s = ray.origin - v0;
+    float u = f * s.dot(h);
+
+    if (u < 0.0f || u > 1.0f)
+        return false;
+
+    Vector3 q = s.cross(edge1);
+    float v = f * ray.direction.dot(q);
+
+    if (v < 0.0f || (u + v) > 1.0f)
+        return false;
+
+    float t_val = f * edge2.dot(q);
+
+    if (t_val > EPSILON)
+    { // Ray intersection
+        hit.distance = t_val;
+        hit.point = ray.origin + ray.direction * t_val;
+        hit.normal = edge1.cross(edge2).normalise();
+        hit.material = material;
+
+        // Removed the unused variable 'w'
+        // float w = 1.0f - u - v;
+
+        // Interpolate UV coordinates using barycentric coordinates (if needed)
+        // Currently unused, but kept for potential future use
+        // float texU = (1.0f - u - v) * uv0.x + u * uv1.x + v * uv2.x;
+        // float texV = (1.0f - u - v) * uv0.y + u * uv1.y + v * uv2.y;
+
+        // Store barycentric coordinates in the Intersection for potential use
+        hit.u = u;
+        hit.v = v;
+
+        return true;
+    }
+    else
+    { // Line intersection but not a ray intersection
+        return false;
+    }
+}
+
+BoundingBox Triangle::getBoundingBox() const
+{
+    Vector3 minPoint = Vector3(
+        std::min({v0.x, v1.x, v2.x}),
+        std::min({v0.y, v1.y, v2.y}),
+        std::min({v0.z, v1.z, v2.z}));
+
+    Vector3 maxPoint = Vector3(
+        std::max({v0.x, v1.x, v2.x}),
+        std::max({v0.y, v1.y, v2.y}),
+        std::max({v0.z, v1.z, v2.z}));
+
+    return BoundingBox(minPoint, maxPoint);
+}
+
+// Sphere.cpp
+#include "Sphere.h"
+#include <cmath> // For sqrt and atan2
+
+bool Sphere::intersect(const Ray &ray, Intersection &hit) const
+{
+    Vector3 oc = ray.origin - center;
+    float a = ray.direction.dot(ray.direction);
+    float b = 2.0f * oc.dot(ray.direction);
+    float c = oc.dot(oc) - radius * radius;
+    float discriminant = b * b - 4 * a * c;
+
+    if (discriminant < 0.0f)
+        return false;
+
+    float sqrtDisc = sqrt(discriminant);
+    float t0 = (-b - sqrtDisc) / (2.0f * a);
+    float t1 = (-b + sqrtDisc) / (2.0f * a);
+
+    if (t0 > t1)
+        std::swap(t0, t1);
+
+    float t;
+    if (t0 > 1e-4f)
+    {
+        t = t0;
+    }
+    else if (t1 > 1e-4f)
+    {
+        t = t1;
+    }
+    else
+    {
+        return false;
+    }
+
+    hit.distance = t;
+    hit.point = ray.origin + ray.direction * t;
+    hit.normal = (hit.point - center).normalise();
+    hit.material = material;
+
+    // Compute UV coordinates for texture mapping
+    Vector3 p = (hit.point - center).normalise(); // Point on unit sphere
+    float u = 0.5f + (std::atan2(p.z, p.x) / (2.0f * M_PI));
+    float v = 0.5f - (std::asin(p.y) / M_PI);
+
+    hit.u = u;
+    hit.v = v;
+
+    return true;
+}
+
+BoundingBox Sphere::getBoundingBox() const
+{
+    Vector3 minPoint = center - Vector3(radius, radius, radius);
+    Vector3 maxPoint = center + Vector3(radius, radius, radius);
+    return BoundingBox(minPoint, maxPoint);
+}
+#include "Plane.h"
+#include "Ray.h"
+#include <cmath>
+
+bool Plane::intersect(const Ray &ray, Intersection &hit) const
+{
+    float denom = normal.dot(ray.direction);
+    if (std::fabs(denom) > 1e-6)
+    {
+        float t = (point - ray.origin).dot(normal) / denom;
+        if (t > 0)
+        {
+            hit.point = ray.origin + ray.direction * t;
+            hit.normal = normal;
+            hit.material = material;
+            hit.distance = t;
+            return true;
+        }
+    }
+    return false;
+}
+
+#include "Vector3.h"
+
+int main()
+{
+    Vector3 v1(1, 2, 3);
+    Vector3 v2(4, 5, 6);
+
+    Vector3 v3 = v1 + v2;
+    v3.print();
+
+    Vector3 v4 = v1.cross(v2);
+    v4.print();
+
+    Vector3 v5 = v1.normalise();
+    v5.print();
+
+    return 0;
+}
+// CheckerboardTexture.h
+#ifndef CHECKERBOARD_TEXTURE_H
+#define CHECKERBOARD_TEXTURE_H
+
+#include "Texture.h"
+#include <memory>
+
+class CheckerboardTexture : public Texture
+{
+public:
+    CheckerboardTexture(const Color &color1, const Color &color2, float scale = 1.0f)
+        : color1(color1), color2(color2), scale(scale) {}
+
+    Color getColor(float u, float v) const override;
+
+private:
+    Color color1;
+    Color color2;
+    float scale;
+};
+
+#endif // CHECKERBOARD_TEXTURE_H
+
+#ifndef BLINN_PHONG_SHADER_H
+#define BLINN_PHONG_SHADER_H
+
+#include "Scene.h"
+#include "Intersection.h"
+#include "Color.h"
+
+class BlinnPhongShader
+{
+public:
+    BlinnPhongShader(const Scene &scene, const Vector3 &cameraPos);
+
+    Color shade(const Intersection &hit) const;
+
+private:
+    const Scene &scene;
+    Vector3 cameraPosition;
+
+    // Check if a point is in shadow
+    bool isInShadow(const Vector3 &point, const Vector3 &lightDir, float lightDistance) const;
+};
+
+#endif // BLINN_PHONG_SHADER_H
+
+// Intersection.h
+#ifndef INTERSECTION_H
+#define INTERSECTION_H
+
+#include "Vector3.h"
+#include "Material.h" // Include Material
+
+struct Intersection
+{
+    Vector3 point;     // Intersection point
+    Vector3 normal;    // Normal at the intersection point
+    Material material; // Material of the intersected object
+    float distance;    // Distance from the ray origin to the intersection point
+
+    float u; // U coordinate for texture mapping
+    float v; // V coordinate for texture mapping
+};
+
+#endif // INTERSECTION_H
+
+#ifndef LIGHT_H
+#define LIGHT_H
+
+#include "Vector3.h"
+#include "Color.h"
+
+class Light
+{
+public:
+    // Constructor to initialize position and intensity
+    Light(const Vector3 &position, const Color &intensity);
+
+    // Getters
+    Vector3 getPosition() const { return position; }
+    Color getIntensity() const { return intensity; }
+
+private:
+    Vector3 position; // Position of the light in the scene
+    Color intensity;  // Intensity (color and brightness) of the light
+};
+
+#endif // LIGHT_H
+
+// BoundingBox.h
+#ifndef BOUNDING_BOX_H
+#define BOUNDING_BOX_H
+
+#include "Vector3.h"
+#include "Ray.h"
+
+class BoundingBox
+{
+public:
+    BoundingBox();
+    BoundingBox(const Vector3 &min, const Vector3 &max);
+
+    // Check if the ray intersects the bounding box
+    bool intersect(const Ray &ray, float t_min, float t_max) const;
+
+    // Expand the bounding box to include another bounding box
+    void expand(const BoundingBox &box);
+
+    // Expand the bounding box to include a point
+    void expand(const Vector3 &point);
+
+    // Getters
+    Vector3 getMin() const { return minPoint; }
+    Vector3 getMax() const { return maxPoint; }
+
+private:
+    Vector3 minPoint;
+    Vector3 maxPoint;
+};
+
+#endif // BOUNDING_BOX_H
+
+#ifndef CAMERA_H
+#define CAMERA_H
+
+#include "Vector3.h"
+#include "Ray.h"
+
+class Camera
+{
+public:
+    // Default constructor
+    Camera()
+        : position(0.0f, 0.0f, 0.0f),
+          lookAt(0.0f, 0.0f, -1.0f),
+          forward(0.0f, 0.0f, -1.0f),
+          up(0.0f, 1.0f, 0.0f),
+          right(1.0f, 0.0f, 0.0f),
+          fov(45.0f),
+          aspectRatio(1.0f),
+          exposure(0.1f),
+          width(800),
+          height(600)
+    {
+    }
+
+    // Constructor with parameters
+    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure);
+
+    // Generate a ray from the camera through a viewport pixel
+    Ray generateRay(float pixelX, float pixelY) const;
+
+    // Method to update resolution and recompute directional vectors
+    void setResolution(int newWidth, int newHeight)
+    {
+        width = newWidth;
+        height = newHeight;
+        aspectRatio = static_cast<float>(width) / height;
+        right = forward.cross(up).normalise();
+        this->up = right.cross(forward).normalise();
+    }
+
+    // Camera attributes
+    Vector3 position;
+    Vector3 lookAt; // Added lookAt member
+    Vector3 forward, up, right;
+    float fov;
+    float aspectRatio;
+    float exposure;
+    int width;  // Image width
+    int height; // Image height
+};
+
+#endif // CAMERA_H
+
+// Sphere.h
+#ifndef SPHERE_H
+#define SPHERE_H
+
+#include "Vector3.h"
+#include "Ray.h"
+#include "Material.h"
+#include "Intersection.h" // Include Intersection
+#include "Object.h"       // Assuming Sphere inherits from Object
+
+class Sphere : public Object // Inheriting from a base Object class
+{
+public:
+    // Constructor with material
+    Sphere(const Vector3 &c, float r, const Material &m)
+        : center(c), radius(r), material(m) {}
+
+    // Intersection method that fills in the Intersection data if there's an intersection
+    bool intersect(const Ray &ray, Intersection &hit) const override;
+
+    // Attributes
+    Vector3 center;    // Center of Sphere
+    float radius;      // Radius of Sphere
+    Material material; // Material of Sphere
+
+    // Get the bounding box of the sphere
+    BoundingBox getBoundingBox() const override;
+};
+
+#endif // SPHERE_H
+
+// SceneLoader.h
+#ifndef SCENELOADER_H
+#define SCENELOADER_H
+
+#include <vector>
+#include <string>
+#include <memory>
+#include "nlohmann/json.hpp"
+#include "Scene.h"   // Updated to include Scene
+#include "Light.h"   // Light class
+#include "Color.h"   // Color struct
+#include "Vector3.h" // Vector3 class
+
+using json = nlohmann::json;
+
+class SceneLoader
+{
+public:
+    // Default constructor
+    SceneLoader() {}
+
+    // Loads the scene from a JSON file and populates the Scene object
+    bool loadScene(const std::string &filePath, Scene &scene);
+
+private:
+    // Helper methods for loading different components
+    Camera loadCamera(const json &cameraData);
+    std::shared_ptr<Object> loadObject(const json &shapeData);
+    std::vector<Light> loadLights(const json &lightsData); // Loads light sources
+    Material loadMaterial(const json &materialData);       // Loads material properties
+};
+
+#endif // SCENELOADER_H
+
+// Cylinder.h
+#ifndef CYLINDER_H
+#define CYLINDER_H
+
+#include "Vector3.h"      // Custom Vector3 class for 3D vectors
+#include "Ray.h"          // Ray class
+#include "Material.h"     // Material class
+#include "Intersection.h" // Intersection structure
+#include "Object.h"       // Base class for objects
+
+class Cylinder : public Object
+{
+public:
+    // Constructor with material
+    Cylinder(const Vector3 &center, const Vector3 &axis, float radius, float height, const Material &material);
+
+    // Method to check ray-cylinder intersection and populate Intersection
+    bool intersect(const Ray &ray, Intersection &hit) const override;
+
+    const Vector3 &getCenter() const { return center; }
+    const Vector3 &getAxis() const { return axis; }
+    float getRadius() const { return radius; }
+    float getHeight() const { return height; }
+
+    // Get the bounding box of the cylinder
+    BoundingBox getBoundingBox() const override;
+
+private:
+    // Method to get the normal at a point on the cylinder
+    Vector3 getNormal(const Vector3 &point) const;
+
+    // Attributes
+    Vector3 center;    // Center point of the cylinder (base)
+    Vector3 axis;      // Normalized axis vector of the cylinder
+    float radius;      // Radius of the cylinder
+    float height;      // Height of the cylinder
+    Material material; // Material property for rendering
+};
+
+#endif // CYLINDER_H
+
+// Material.h
+#ifndef MATERIAL_H
+#define MATERIAL_H
+
+#include "Color.h"
+#include <memory>
+#include "Texture.h"
+
+class Material
+{
+public:
+    // Default constructor with typical default values
+    Material()
+        : ks(0.0f), kd(1.0f), specularExponent(1.0f),
+          ambient(0.1f, 0.1f, 0.1f),
+          diffuseColor(1.0f, 1.0f, 1.0f), specularColor(1.0f, 1.0f, 1.0f),
+          isReflective(false), reflectivity(0.0f),
+          isRefractive(false), refractiveIndex(1.0f),
+          texture(nullptr) {}
+
+    // Material properties
+    float ks;               // Specular coefficient
+    float kd;               // Diffuse coefficient
+    float specularExponent; // Specular exponent for shininess
+    Color ambient;          // Ambient color
+    Color diffuseColor;     // Diffuse color
+    Color specularColor;    // Specular color
+    bool isReflective;      // Reflective flag
+    float reflectivity;     // Reflectivity factor
+    bool isRefractive;      // Refractive flag
+    float refractiveIndex;  // Refractive index
+
+    // Texture
+    std::shared_ptr<Texture> texture;
+};
+
+#endif // MATERIAL_H
+
+#ifndef COLOR_H
+#define COLOR_H
+
+#include <algorithm> // For std::min and std::max
+#include <iostream>
+#include <cmath> // For std::fabs
+
+struct Color
+{
+    float r, g, b;
+
+    // Constructors
+    Color() : r(0.0f), g(0.0f), b(0.0f) {}
+    Color(float red, float green, float blue) : r(red), g(green), b(blue) {}
+
+    // Operator Overloads
+    Color operator+(const Color &other) const
+    {
+        return Color(r + other.r, g + other.g, b + other.b);
+    }
+
+    Color &operator+=(const Color &other)
+    {
+        r += other.r;
+        g += other.g;
+        b += other.b;
+        return *this;
+    }
+
+    Color operator*(float scalar) const
+    {
+        return Color(r * scalar, g * scalar, b * scalar);
+    }
+
+    Color operator*(const Color &other) const // Element-wise multiplication
+    {
+        return Color(r * other.r, g * other.g, b * other.b);
+    }
+
+    Color clamp(float minVal, float maxVal) const
+    {
+        return Color(
+            std::max(minVal, std::min(r, maxVal)),
+            std::max(minVal, std::min(g, maxVal)),
+            std::max(minVal, std::min(b, maxVal)));
+    }
+
+    // Tone mapping method
+    Color toneMap() const
+    {
+        return clamp(0.0f, 1.0f); // Ensures all color components are in the range [0, 1]
+    }
+
+    bool operator==(const Color &other) const
+    {
+        const float tolerance = 1e-5f;
+        return (std::fabs(r - other.r) < tolerance) &&
+               (std::fabs(g - other.g) < tolerance) &&
+               (std::fabs(b - other.b) < tolerance);
+    }
+
+    bool operator!=(const Color &other) const
+    {
+        return !(*this == other);
+    }
+
+    // Stream insertion operator for printing
+    friend std::ostream &operator<<(std::ostream &os, const Color &c)
+    {
+        os << "Color(" << c.r << ", " << c.g << ", " << c.b << ")";
+        return os;
+    }
+};
+
+#endif // COLOR_H
+
+#ifndef PLANE_H
+#define PLANE_H
+
+#include "Object.h"
+#include "Vector3.h"
+#include "Material.h"
+
+class Plane : public Object
+{
+public:
+    Plane(const Vector3 &point, const Vector3 &normal, const Material &material)
+        : point(point), normal(normal.normalise()), material(material) {}
+
+    bool intersect(const Ray &ray, Intersection &hit) const override;
+
+private:
+    Vector3 point;  // A point on the plane
+    Vector3 normal; // Normal to the plane
+    Material material;
+};
+
+#endif // PLANE_H
+
+// BVHNode.h
+#ifndef BVH_NODE_H
+#define BVH_NODE_H
+
+#include "BoundingBox.h"
+#include "Object.h"
+#include <vector>
+#include <memory>
+
+class BVHNode
+{
+public:
+    BVHNode();
+
+    // Build the BVH node from a list of objects
+    BVHNode(const std::vector<std::shared_ptr<Object>> &objects, size_t start, size_t end);
+
+    // Check for intersection with the BVH node
+    bool intersect(const Ray &ray, Intersection &hit) const;
+
+private:
+    BoundingBox box;
+    std::shared_ptr<BVHNode> left;
+    std::shared_ptr<BVHNode> right;
+    std::shared_ptr<Object> object; // For leaf nodes
+};
+
+#endif // BVH_NODE_H
+
+#ifndef RAY_H
+#define RAY_H
+
+#include "Vector3.h"
+
+class Ray
+{
+public:
+    Vector3 origin;    // Starting point of the ray
+    Vector3 direction; // Direction of the ray
+
+    // Constructor
+    Ray(const Vector3 &origin, const Vector3 &direction);
+
+    // Method to compute a point along the ray at a given distance (t)
+    Vector3 at(float t) const;
+};
+
+#endif
+// Object.h
+#ifndef OBJECT_H
+#define OBJECT_H
+
+#include "Ray.h"
+#include "Intersection.h"
+#include "BoundingBox.h"
+
+class Object
+{
+public:
+    virtual ~Object() {}
+
+    // Pure virtual intersect method to be implemented by derived classes
+    virtual bool intersect(const Ray &ray, Intersection &hit) const = 0;
+
+    // Virtual method to get the bounding box of the object
+    virtual BoundingBox getBoundingBox() const = 0;
+};
+
+#endif // OBJECT_H
+
+// Triangle.h
+#ifndef TRIANGLE_H
+#define TRIANGLE_H
+
+#include "Vector3.h"
+#include "Ray.h"
+#include "Material.h"
+#include "Intersection.h"
+#include "Object.h"
+#include "BoundingBox.h"
+
+class Triangle : public Object
+{
+public:
+    // Constructor with material and optional UV coordinates
+    Triangle(const Vector3 &vertex0, const Vector3 &vertex1, const Vector3 &vertex2, const Material &m,
+             const Vector3 &uv0 = Vector3(0, 0, 0), const Vector3 &uv1 = Vector3(1, 0, 0), const Vector3 &uv2 = Vector3(0, 1, 0))
+        : v0(vertex0), v1(vertex1), v2(vertex2), uv0(uv0), uv1(uv1), uv2(uv2), material(m) {}
+
+    bool intersect(const Ray &ray, Intersection &hit) const override;
+
+    // Triangle vertices
+    Vector3 v0, v1, v2;
+
+    // UV coordinates at each vertex
+    Vector3 uv0, uv1, uv2;
+
+    Material material;
+
+    // Get the bounding box of the triangle
+    BoundingBox getBoundingBox() const override;
+};
+
+#endif // TRIANGLE_H
+
+// Texture.h
+#ifndef TEXTURE_H
+#define TEXTURE_H
+
+#include "Color.h"
+
+class Texture
+{
+public:
+    virtual ~Texture() {}
+
+    // Given UV coordinates, return the color
+    virtual Color getColor(float u, float v) const = 0;
+};
+
+#endif // TEXTURE_H
+
+// include/Image.h
+#ifndef IMAGE_H
+#define IMAGE_H
+
+#include "Color.h"
+#include <vector>
+#include <string>
+
+class Image
+{
+public:
+    Image();
+    Image(int width, int height);
+
+    void setPixel(int x, int y, const Color &color);
+    Color getPixel(int x, int y) const;
+    bool saveAsPPM(const std::string &filename) const;
+
+private:
+    int width;
+    int height;
+    std::vector<Color> pixels;
+};
+
+#endif // IMAGE_H
+
+#ifndef RAYTRACER_H
+#define RAYTRACER_H
+
+#include "Image.h"
+#include "Scene.h"
+#include "Ray.h"
+#include "Vector3.h"
+#include "Intersection.h"
+#include "Color.h"
+#include <string>
+
+// Forward declaration to avoid circular dependency
+class BlinnPhongShader;
+
+class Raytracer
+{
+public:
+    // Constructor with width and height
+    Raytracer(int width, int height);
+
+    // Render the scene and save the output image
+    void render(const Scene &scene, const std::string &outputFilename);
+
+    // Trace a ray into the scene and compute the color, supporting recursion for reflections/refractions
+    Color trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth = 0) const;
+
+    // Access the rendered image (for testing purposes)
+    Image getImage() const { return image; }
+
+    Color getPixelColor(int x, int y) const;
+
+private:
+    Image image;
+};
+
+#endif // RAYTRACER_H
+
+// Vector3.h
+#ifndef VECTOR3_H
+#define VECTOR3_H
+
+#include <iostream>
+#include <cmath>
+
+class Vector3
+{
+public:
+    float x, y, z;
+
+    // Constructors
+    Vector3() : x(0.0f), y(0.0f), z(0.0f) {}
+    Vector3(float x_val, float y_val, float z_val) : x(x_val), y(y_val), z(z_val) {}
+
+    // Basic Operations
+    Vector3 operator+(const Vector3 &other) const;
+    Vector3 operator-(const Vector3 &other) const;
+    Vector3 operator*(float scalar) const;
+    Vector3 operator/(float scalar) const;
+
+    // Compound Assignment Operators
+    Vector3 &operator+=(const Vector3 &other);
+    Vector3 &operator-=(const Vector3 &other);
+    Vector3 &operator*=(float scalar);
+    Vector3 &operator/=(float scalar);
+
+    // operator for element-wise multiplication
+    Vector3 operator*(const Vector3 &other) const;
+
+    // Unary Minus Operator
+    Vector3 operator-() const;
+
+    // Dot Product and Cross Product
+    float dot(const Vector3 &other) const;
+    Vector3 cross(const Vector3 &other) const;
+
+    // Normalize vector
+    Vector3 normalise() const;
+
+    // Add operator[] for component access
+    float &operator[](int index);
+    const float &operator[](int index) const;
+
+    // Static methods for min and max
+    static Vector3 min(const Vector3 &a, const Vector3 &b);
+    static Vector3 max(const Vector3 &a, const Vector3 &b);
+
+    Vector3 reflect(const Vector3 &normal) const;
+    Vector3 refract(const Vector3 &normal, float eta) const;
+
+    // Length and Length Squared
+    float length() const;
+    float lengthSquared() const;
+
+    // Clamp vector components between min and max
+    Vector3 clamp(float min_val, float max_val) const;
+
+    // Equality operators with tolerance for floating-point comparisons
+    bool operator==(const Vector3 &other) const;
+    bool operator!=(const Vector3 &other) const;
+
+    // Stream insertion operator for printing
+    friend std::ostream &operator<<(std::ostream &os, const Vector3 &v);
+
+    // Debugging
+    void print() const;
+};
+
+// Scalar * Vector3 multiplication (global operator overload)
+inline Vector3 operator*(float scalar, const Vector3 &v)
+{
+    return Vector3(v.x * scalar, v.y * scalar, v.z * scalar);
+}
+
+#endif // VECTOR3_H
+
+// Scene.h
+#ifndef SCENE_H
+#define SCENE_H
+
+#include <vector>
+#include <memory>
+#include "Object.h"  // Base class for Sphere, Cylinder, Triangle
+#include "Light.h"   // Light class
+#include "Camera.h"  // Camera class
+#include "Vector3.h" // Vector3 class for colors and positions
+#include "BVHNode.h" // BVHNode class for acceleration structure
+
+class Scene
+{
+public:
+    // Constructor
+    Scene() : backgroundColor(0.25f, 0.25f, 0.25f), renderMode("binary"), nbounces(1), bvhRoot(nullptr) {}
+
+    // Scene components
+    Camera camera;                                // Camera
+    std::vector<std::shared_ptr<Object>> objects; // Collection of objects (polymorphic)
+    std::vector<Light> lights;                    // Collection of lights
+    Color backgroundColor;                        // Background color
+    std::string renderMode;                       // Rendering mode (e.g., binary, phong, pathtracer)
+    int nbounces;                                 // Number of bounces for reflections/refractions
+
+    // Method to add an object
+    void addObject(const std::shared_ptr<Object> &obj)
+    {
+        objects.push_back(obj);
+    }
+
+    // Method to add a light
+    void addLight(const Light &light)
+    {
+        lights.push_back(light);
+    }
+
+    // Method to build the BVH tree
+    void buildBVH();
+
+    // Intersection method declaration
+    bool intersect(const Ray &ray, Intersection &closestHit) const;
+
+private:
+    // Private members or helper methods if needed
+    std::shared_ptr<BVHNode> bvhRoot; // Root of the BVH tree
+};
+
+#endif // SCENE_H
+
+{
+    "rendermode":"binary",
+    "camera":
+        { 
+            "type":"pinhole", 
+            "width":1200, 
+            "height":800,
+            "position":[0.0, 0, 0],
+            "lookAt":[0.0, 0, 1.0],
+            "upVector":[0.0, 1.0, 0.0],
+            "fov":45.0,
+            "exposure":0.1
+        },
+    "scene":
+        { 
+            "backgroundcolor": [0.25, 0.25, 0.25], 
+            "shapes":[ 
+                { 
+                    "type":"sphere", 
+                    "center": [-0.3, 0.19, 1],
+                    "radius":0.2
+                },
+                {
+                    "type": "cylinder",
+                    "center": [-0.3, -0.2, 1],
+                    "axis": [1, 0, 0],
+                    "radius": 0.15,
+                    "height": 0.2
+                },
+                { 
+                    "type":"triangle", 
+                    "v0": [0, 0, 1],
+                    "v1": [0.5, 0, 1],
+                    "v2": [0.25,  0.25, 1]
+                }  
+            ] 
+        } 
+}
+
+{
+    "nbounces":8, 
+    "rendermode":"binary",
+    "camera":
+        { 
+            "type":"pinhole", 
+            "width":1200, 
+            "height":800,
+            "position":[0.0, 0.75, -0.25],
+            "lookAt":[0.0, 0.35, 1.0],
+            "upVector":[0.0, 1.0, 0.0],
+            "fov":45.0,
+            "exposure":0.1
+        },
+    "scene":
+        { 
+            "backgroundcolor": [0.25, 0.25, 0.25], 
+            "lightsources":[ 
+                { 
+                    "type":"pointlight", 
+                    "position":[0, 1.0, 0.5], 
+                    "intensity":[0.5, 0.5, 0.5] 
+                },
+                { 
+                    "type":"pointlight", 
+                    "position":[0, 1.0, -0.5], 
+                    "intensity":[0.5, 0.5, 0.5] 
+                }
+            ], 
+            "shapes":[ 
+                { 
+                    "type":"sphere", 
+                    "center": [0, -25.0, 0], 
+                    "radius":25.1, 
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":10, 
+                            "diffusecolor":[0.5, 1, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                {
+                    "type": "cylinder",
+                    "center": [-0.3, 0.19, 1],
+                    "axis": [0, 1, 0],
+                    "radius": 0.15,
+                    "height": 0.2,
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.5, 0.8],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                {
+                    "type": "triangle",
+                    "v0": [0, 0.0, 2.25],
+                    "v1": [0.75, 0.0, 2],
+                    "v2": [0, 0.75, 2.25],
+                    "material":
+                        { 
+                            "ks":0.3, 
+                            "kd":0.9, 
+                            "specularexponent":2, 
+                            "diffusecolor":[0.8, 0.5, 0.8],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":true,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                {
+                    "type": "triangle",
+                    "v0": [0.75, 0.75, 2],
+                    "v1": [0.75, 0.0, 2],
+                    "v2": [0, 0.75, 2.25],
+                    "material":
+                        { 
+                            "ks":0.3, 
+                            "kd":0.9, 
+                            "specularexponent":2, 
+                            "diffusecolor":[0.8, 0.5, 0.8],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":true,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"sphere", 
+                    "center": [-0.3, 0.59, 1],
+                    "radius":0.2, 
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.8, 0.5, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"sphere", 
+                    "center": [0.3, 0.29, 1],
+                    "radius":0.2, 
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.8, 0.5, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":true,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                }  
+            ] 
+        } 
+}
+{
+  "nbounces": 8,
+  "rendermode": "binary",
+  "camera": {
+    "type": "pinhole",
+    "width": 1200,
+    "height": 800,
+    "position": [0.0, 0.75, -0.25],
+    "lookAt": [0.0, 0.35, 1.0],
+    "upVector": [0.0, 1.0, 0.0],
+    "fov": 45.0,
+    "exposure": 0.1
+  },
+  "scene": {
+    "backgroundcolor": [0.25, 0.25, 0.25],
+    "lightsources": [
+      {
+        "type": "pointlight",
+        "position": [0, 1.0, 0.5],
+        "intensity": [0.5, 0.5, 0.5]
+      },
+      {
+        "type": "pointlight",
+        "position": [0, 1.0, -0.5],
+        "intensity": [0.5, 0.5, 0.5]
+      }
+    ],
+    "shapes": [
+      {
+        "type": "sphere",
+        "center": [0, -25.0, 0],
+        "radius": 25.1,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 10,
+          "diffusecolor": [0.5, 1, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0,
+          "texture": {
+            "type": "checkerboard",
+            "color1": [0.5, 1, 0.5],
+            "color2": [0.2, 0.4, 0.2],
+            "scale": 10.0
+          }
+        }
+      },
+      {
+        "type": "cylinder",
+        "center": [-0.3, 0.19, 1],
+        "axis": [0, 1, 0],
+        "radius": 0.15,
+        "height": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.5, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0,
+          "texture": {
+            "type": "checkerboard",
+            "color1": [0.5, 0.5, 0.8],
+            "color2": [0.2, 0.2, 0.4],
+            "scale": 10.0
+          }
+        }
+      },
+      {
+        "type": "triangle",
+        "v0": [0, 0.0, 2.25],
+        "v1": [0.75, 0.0, 2],
+        "v2": [0, 0.75, 2.25],
+        "uv0": [0.0, 0.0],
+        "uv1": [1.0, 0.0],
+        "uv2": [0.0, 1.0],
+        "material": {
+          "ks": 0.3,
+          "kd": 0.9,
+          "specularexponent": 2,
+          "diffusecolor": [0.8, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0,
+          "texture": {
+            "type": "checkerboard",
+            "color1": [0.8, 0.5, 0.8],
+            "color2": [0.2, 0.1, 0.2],
+            "scale": 5.0
+          }
+        }
+      },
+      {
+        "type": "triangle",
+        "v0": [0.75, 0.75, 2],
+        "v1": [0.75, 0.0, 2],
+        "v2": [0, 0.75, 2.25],
+        "uv0": [1.0, 1.0],
+        "uv1": [1.0, 0.0],
+        "uv2": [0.0, 1.0],
+        "material": {
+          "ks": 0.3,
+          "kd": 0.9,
+          "specularexponent": 2,
+          "diffusecolor": [0.8, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0,
+          "texture": {
+            "type": "checkerboard",
+            "color1": [0.8, 0.5, 0.8],
+            "color2": [0.2, 0.1, 0.2],
+            "scale": 5.0
+          }
+        }
+      },
+      {
+        "type": "sphere",
+        "center": [-0.3, 0.59, 1],
+        "radius": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.8, 0.5, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0,
+          "texture": {
+            "type": "checkerboard",
+            "color1": [0.8, 0.5, 0.5],
+            "color2": [0.4, 0.25, 0.25],
+            "scale": 10.0
+          }
+        }
+      },
+      {
+        "type": "sphere",
+        "center": [0.3, 0.29, 1],
+        "radius": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.8, 0.5, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0,
+          "texture": {
+            "type": "checkerboard",
+            "color1": [0.8, 0.5, 0.5],
+            "color2": [0.4, 0.25, 0.25],
+            "scale": 10.0
+          }
+        }
+      }
+    ]
+  }
+}
+
+{
+    "nbounces":8, 
+    "rendermode":"phong",
+    "camera":
+        { 
+            "type":"pinhole", 
+            "width":1200, 
+            "height":800,
+            "position":[0.0, 1, -2],
+            "lookAt":[0.0, -0.1, 1.0],
+            "upVector":[0.0, 1.0, 0.0],
+            "fov":45.0,
+            "exposure":0.1
+        },
+    "scene":
+        { 
+            "backgroundcolor": [0.25, 0.25, 0.25], 
+            "lightsources":[ 
+                { 
+                    "type":"pointlight", 
+                    "position":[0, 1.0, 0.5], 
+                    "intensity":[0.75, 0.75, 0.75] 
+                }
+            ], 
+            "shapes":[ 
+                { 
+                    "type":"sphere", 
+                    "center": [-0.35, -0.2, 1],
+                    "radius":0.3, 
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.8, 0.5, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                {
+                    "type": "cylinder",
+                    "center": [0.3, 0, 1],
+                    "axis": [0, 1, 0],
+                    "radius": 0.25,
+                    "height": 0.5,
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.5, 0.8],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"triangle", 
+                    "v0": [ -1, -0.5, 2],
+                    "v1": [ 1, -0.5, 2],
+                    "v2": [ 1, -0.5, 0],
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.8, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"triangle", 
+                    "v0": [-1, -0.5, 0],
+                    "v1": [-1, -0.5, 2],
+                    "v2": [ 1, -0.5, 0],
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.8, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                }  
+            ] 
+        } 
+}
+
+{
+    "nbounces":8, 
+    "rendermode":"phong",
+    "camera":
+        { 
+            "type":"pinhole", 
+            "width":1200, 
+            "height":800,
+            "position":[-1, 0.5, -1.5],
+            "lookAt":[0.25, -0.05, 1.0],
+            "upVector":[0.0, 1.0, 0.0],
+            "fov":45.0,
+            "exposure":0.1
+        },
+    "scene":
+        { 
+            "backgroundcolor": [0.25, 0.25, 0.25], 
+            "lightsources":[ 
+                { 
+                    "type":"pointlight", 
+                    "position":[0, 1.0, 0.5], 
+                    "intensity":[0.75, 0.75, 0.75] 
+                }
+            ], 
+            "shapes":[ 
+                { 
+                    "type":"sphere", 
+                    "center": [-0.35, -0.2, 1],
+                    "radius":0.3, 
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.8, 0.5, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"sphere", 
+                    "center": [0, 0.2, -1.25],
+                    "radius":0.2, 
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.8, 0.5, 0.8],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                {
+                    "type": "cylinder",
+                    "center": [0.3, 0, 1],
+                    "axis": [0, 1, 0],
+                    "radius": 0.25,
+                    "height": 0.5,
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.5, 0.8],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"triangle", 
+                    "v0": [ -1, -0.5, 2],
+                    "v1": [ 1, -0.5, 2],
+                    "v2": [ 1, -0.5, 0],
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.8, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"triangle", 
+                    "v0": [-1, -0.5, 0],
+                    "v1": [-1, -0.5, 2],
+                    "v2": [ 1, -0.5, 0],
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.8, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":false,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"triangle", 
+                    "v0": [ -1, -0.5, 2],
+                    "v1": [ 1, 2.5, 2],
+                    "v2": [ 1, -0.5, 2],
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.8, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":true,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                },
+                { 
+                    "type":"triangle", 
+                    "v0": [ -1, -0.5, 2],
+                    "v1": [ -1, 2.5, 2],
+                    "v2": [ 1, 2.5, 2],
+                    "material":
+                        { 
+                            "ks":0.1, 
+                            "kd":0.9, 
+                            "specularexponent":20, 
+                            "diffusecolor":[0.5, 0.8, 0.5],
+                            "specularcolor":[1.0,1.0,1.0],
+                            "isreflective":true,
+                            "reflectivity":1.0,
+                            "isrefractive":false,
+                            "refractiveindex":1.0 
+                        } 
+                }  
+            ] 
+        } 
+}
+

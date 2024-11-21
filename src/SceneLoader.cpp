@@ -1,4 +1,5 @@
 // SceneLoader.cpp
+
 #include "SceneLoader.h"
 #include "Sphere.h"
 #include "Cylinder.h"
@@ -184,11 +185,11 @@ Material SceneLoader::loadMaterial(const json &materialData)
                 Color color1(1.0f, 1.0f, 1.0f);
                 Color color2(0.0f, 0.0f, 0.0f);
                 float scale = 1.0f;
-                if (textureData.contains("color1"))
+                if (textureData.contains("color1") && textureData["color1"].is_array() && textureData["color1"].size() == 3)
                 {
                     color1 = Color(textureData["color1"][0], textureData["color1"][1], textureData["color1"][2]);
                 }
-                if (textureData.contains("color2"))
+                if (textureData.contains("color2") && textureData["color2"].is_array() && textureData["color2"].size() == 3)
                 {
                     color2 = Color(textureData["color2"][0], textureData["color2"][1], textureData["color2"][2]);
                 }
@@ -283,15 +284,15 @@ std::shared_ptr<Object> SceneLoader::loadObject(const json &shapeData)
             Vector3 uv0(0.0f, 0.0f, 0.0f);
             Vector3 uv1(1.0f, 0.0f, 0.0f);
             Vector3 uv2(0.0f, 1.0f, 0.0f);
-            if (shapeData.contains("uv0"))
+            if (shapeData.contains("uv0") && shapeData["uv0"].is_array() && shapeData["uv0"].size() >= 2)
             {
                 uv0 = Vector3(shapeData["uv0"][0], shapeData["uv0"][1], 0.0f);
             }
-            if (shapeData.contains("uv1"))
+            if (shapeData.contains("uv1") && shapeData["uv1"].is_array() && shapeData["uv1"].size() >= 2)
             {
                 uv1 = Vector3(shapeData["uv1"][0], shapeData["uv1"][1], 0.0f);
             }
-            if (shapeData.contains("uv2"))
+            if (shapeData.contains("uv2") && shapeData["uv2"].is_array() && shapeData["uv2"].size() >= 2)
             {
                 uv2 = Vector3(shapeData["uv2"][0], shapeData["uv2"][1], 0.0f);
             }
@@ -303,5 +304,10 @@ std::shared_ptr<Object> SceneLoader::loadObject(const json &shapeData)
             std::cerr << "Invalid triangle format. Skipping object." << std::endl;
             return nullptr;
         }
+    }
+    else
+    {
+        std::cerr << "Unknown shape type: " << type << ". Skipping object." << std::endl;
+        return nullptr;
     }
 }
