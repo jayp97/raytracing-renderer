@@ -1,5 +1,9 @@
 #include "Image.h"
 #include <fstream>
+#include <mutex>
+
+// Mutex for thread safety
+std::mutex imageMutex;
 
 Image::Image() : width(0), height(0), pixels()
 {
@@ -12,6 +16,8 @@ void Image::setPixel(int x, int y, const Color &color)
 {
     if (x >= 0 && x < width && y >= 0 && y < height)
     {
+        // Lock the mutex for thread-safe access
+        std::lock_guard<std::mutex> lock(imageMutex);
         pixels[y * width + x] = color;
     }
 }

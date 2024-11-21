@@ -1,6 +1,9 @@
 # Set the compiler and flags
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Iinclude -Itest
+CXX = /opt/homebrew/bin/g++-14
+CXXFLAGS = -std=c++17 -O3 -Wall -Wextra -Wpedantic -fopenmp \
+           -Iinclude -Itest \
+           -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk
+LDFLAGS = -L/opt/homebrew/lib/gcc/14
 
 # Directories for source, test, and output files
 SRC_DIR = src
@@ -28,63 +31,62 @@ TEST_TARGET_TRIANGLE = $(BIN_DIR)/test_triangle
 TEST_TARGET_CYLINDER = $(BIN_DIR)/test_cylinder
 TEST_TARGET_SHADOW = $(BIN_DIR)/test_shadow
 TEST_TARGET_SCENE_LOADER = $(BIN_DIR)/test_scene_loader
-TEST_TARGET_RAYTRACER = $(BIN_DIR)/test_raytracer  
+TEST_TARGET_RAYTRACER = $(BIN_DIR)/test_raytracer
 TEST_TARGET_BINARY_RENDERING_MODE = $(BIN_DIR)/test_binary_rendering_mode
+
 # Default target to build the main executable
 all: $(TARGET)
 
 # Link object files to create the main executable
 $(TARGET): $(OBJECTS) $(MAIN_OBJECT) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Build and run the test_camera executable
 test_camera: $(OBJECTS) $(OBJ_DIR)/test_camera.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CAMERA) $(OBJECTS) $(OBJ_DIR)/test_camera.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CAMERA) $(OBJECTS) $(OBJ_DIR)/test_camera.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_CAMERA)
 
 # Build and run the test_sphere executable
 test_sphere: $(OBJECTS) $(OBJ_DIR)/test_sphere.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SPHERE) $(OBJECTS) $(OBJ_DIR)/test_sphere.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SPHERE) $(OBJECTS) $(OBJ_DIR)/test_sphere.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_SPHERE)
 
 # Build and run the test_ray executable
 test_ray: $(OBJECTS) $(OBJ_DIR)/test_ray.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_RAY) $(OBJECTS) $(OBJ_DIR)/test_ray.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_RAY) $(OBJECTS) $(OBJ_DIR)/test_ray.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_RAY)
 
 # Compile and run the test_triangle executable
 test_triangle: $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_TRIANGLE) $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_TRIANGLE) $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_TRIANGLE)
 
 # Compile and run the test_cylinder executable
 test_cylinder: $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CYLINDER) $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CYLINDER) $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_CYLINDER)
 
 # Compile and run the test_shadow executable
 test_shadow: $(OBJECTS) $(OBJ_DIR)/test_shadow.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SHADOW) $(OBJECTS) $(OBJ_DIR)/test_shadow.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SHADOW) $(OBJECTS) $(OBJ_DIR)/test_shadow.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_SHADOW)
 
 # Rule for compiling and running the test_scene_loader executable
 test_scene_loader: $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SCENE_LOADER) $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SCENE_LOADER) $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_SCENE_LOADER)
 
 # Compile and run the test_raytracer executable
 test_raytracer: $(OBJECTS) $(OBJ_DIR)/test_raytracer.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_RAYTRACER) $(OBJECTS) $(OBJ_DIR)/test_raytracer.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_RAYTRACER) $(OBJECTS) $(OBJ_DIR)/test_raytracer.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_RAYTRACER)
 
-# Compile and run the test_raytracer executable
+# Compile and run the test_binary_rendering_mode executable
 test_binary_rendering_mode: $(OBJECTS) $(OBJ_DIR)/test_binary_rendering_mode.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_BINARY_RENDERING_MODE) $(OBJECTS) $(OBJ_DIR)/test_binary_rendering_mode.o $(OBJ_DIR)/catch_amalgamated.o
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_BINARY_RENDERING_MODE) $(OBJECTS) $(OBJ_DIR)/test_binary_rendering_mode.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
 	./$(TEST_TARGET_BINARY_RENDERING_MODE)
 
-
-
-# Compile each .cpp file in src to an object file (except main.cpp)
+# Compile each .cpp file in src to an object file (including main.cpp)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
@@ -98,4 +100,4 @@ $(BIN_DIR) $(OBJ_DIR):
 
 # Clean command to remove generated files
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)
+	rm -rf $(OBJ_DIR) $(BIN_DIR) *.o *.gch

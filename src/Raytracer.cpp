@@ -2,6 +2,8 @@
 #include "BlinnPhongShader.h"
 #include <iostream>
 #include <algorithm>
+#include <omp.h>
+#include <chrono> // Include for timing
 
 Raytracer::Raytracer(int width, int height) : image(width, height)
 {
@@ -20,7 +22,11 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     // Initialize the shader once
     BlinnPhongShader shader(scene, scene.camera.position);
 
-    // Iterate over each pixel
+    // Start timing
+    auto startTime = std::chrono::steady_clock::now();
+
+// Iterate over each pixel with OpenMP parallelization
+#pragma omp parallel for schedule(dynamic) shared(image)
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
@@ -39,20 +45,34 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
                 color = (color != scene.backgroundColor) ? Color(1, 1, 1) : scene.backgroundColor;
             }
 
+            // Set the pixel color (assumes thread-safe)
             image.setPixel(x, y, color);
         }
 
-        // Optional: Print progress every 100 lines
-        if (y % 100 == 0)
+// Calculate and display progress every 100 lines or on the last line
+#pragma omp critical
         {
-            std::cout << "Rendered " << y << " / " << height << " lines." << std::endl;
+            if (y % 100 == 0 || y == height - 1)
+            {
+                auto currentTime = std::chrono::steady_clock::now();
+                std::chrono::duration<double> elapsed = currentTime - startTime;
+                double progress = (static_cast<double>(y) / height) * 100.0;
+                std::cout << "\rRendering Progress: " << progress << "% | Elapsed Time: " << elapsed.count() << "s" << std::flush;
+            }
         }
     }
 
-    // Save the rendered image to the specified file
-    image.saveAsPPM(outputFilename);
+    std::cout << std::endl; // Move to the next line after progress output
 
-    std::cout << "Rendering completed. Image saved to " << outputFilename << std::endl;
+    // Save the rendered image to the specified file
+    if (image.saveAsPPM(outputFilename))
+    {
+        std::cout << "Rendering completed. Image saved to " << outputFilename << std::endl;
+    }
+    else
+    {
+        std::cerr << "Failed to save image to " << outputFilename << std::endl;
+    }
 }
 
 Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth) const
@@ -92,8 +112,7 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShade
                 float eta = closestHit.material.refractiveIndex;
                 Vector3 normal = closestHit.normal;
                 float cosi = normal.dot(ray.direction);
-                float etai = 1.0f;
-                float etat = eta;
+                float etai = 1.0f, etat = eta;
 
                 if (cosi > 0)
                 {

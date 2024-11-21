@@ -1,7 +1,8 @@
 // Cylinder.cpp
 #include "Cylinder.h"
-#include <cmath>
-#include <limits>
+#include <cmath>     // For sqrt, fabs, etc.
+#include <limits>    // For numeric_limits
+#include <algorithm> // For std::min and std::max
 
 // Constructor with Material parameter
 Cylinder::Cylinder(const Vector3 &c, const Vector3 &a, float r, float h, const Material &m)
@@ -20,24 +21,25 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
     float b = 2.0f * rayDirPerp.dot(ocPerp);
     float c = ocPerp.dot(ocPerp) - radius * radius;
 
-    float discriminant = b * b - 4 * a * c;
+    float discriminant = b * b - 4.0f * a * c;
     bool hitCylinderSide = false;
     float tSide = std::numeric_limits<float>::max();
 
     // Check for intersection with the side surface of the cylinder
-    if (discriminant >= 0)
+    if (discriminant >= 0.0f)
     {
         float sqrtDisc = std::sqrt(discriminant);
         float t1 = (-b - sqrtDisc) / (2.0f * a);
         float t2 = (-b + sqrtDisc) / (2.0f * a);
 
+        // Check both possible intersection points
         for (float tTemp : {t1, t2})
         {
             if (tTemp > 1e-4f) // Avoid self-intersection
             {
                 Vector3 point = ray.origin + tTemp * ray.direction;
-                float heightCheck = (point - center).dot(axis);
-                if (heightCheck >= 0 && heightCheck <= height)
+                float projection = (point - center).dot(axis);
+                if (projection >= 0.0f && projection <= height)
                 {
                     if (tTemp < tSide)
                     {
@@ -84,9 +86,9 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
     // Prepare orthogonal vectors for cap UV mapping
     Vector3 uDir, vDir;
     if (std::fabs(axis.x) > std::fabs(axis.y))
-        uDir = Vector3(-axis.z, 0, axis.x).normalise();
+        uDir = Vector3(-axis.z, 0.0f, axis.x).normalise();
     else
-        uDir = Vector3(0, axis.z, -axis.y).normalise();
+        uDir = Vector3(0.0f, axis.z, -axis.y).normalise();
     vDir = axis.cross(uDir).normalise();
 
     // Check for intersection with the top and bottom caps
@@ -104,8 +106,8 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
         if (tCap > 1e-4f && tCap < tFinal)
         {
             Vector3 pCap = ray.origin + tCap * ray.direction;
-            Vector3 v = pCap - capCenter;
-            if (v.dot(v) <= radius * radius)
+            Vector3 vCap = pCap - capCenter;
+            if (vCap.dot(vCap) <= radius * radius)
             {
                 tFinal = tCap;
                 hit.point = pCap;
@@ -136,8 +138,8 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
         if (tCap > 1e-4f && tCap < tFinal)
         {
             Vector3 pCap = ray.origin + tCap * ray.direction;
-            Vector3 v = pCap - capCenter;
-            if (v.dot(v) <= radius * radius)
+            Vector3 vCap = pCap - capCenter;
+            if (vCap.dot(vCap) <= radius * radius)
             {
                 tFinal = tCap;
                 hit.point = pCap;
@@ -169,7 +171,7 @@ Vector3 Cylinder::getNormal(const Vector3 &point) const
     Vector3 projectionPoint = center + axis * projection;
 
     // Check if the point is on the side or caps
-    if (projection >= 0 && projection <= height)
+    if (projection >= 0.0f && projection <= height)
     {
         // Side surface
         Vector3 normal = (point - projectionPoint).normalise();
@@ -187,9 +189,10 @@ Vector3 Cylinder::getNormal(const Vector3 &point) const
     }
 }
 
+// Get the bounding box of the cylinder
 BoundingBox Cylinder::getBoundingBox() const
 {
-    // Approximate the bounding box by considering the cylinder's axis-aligned dimensions
+    // Calculate bounding box by considering the axis-aligned dimensions
     Vector3 radiusVec(radius, radius, radius);
 
     // Compute base and top centers
@@ -206,6 +209,7 @@ BoundingBox Cylinder::getBoundingBox() const
 
     return BoundingBox(minPoint, maxPoint);
 }
+
 // SceneLoader.cpp
 
 #include "SceneLoader.h"
@@ -1009,8 +1013,8 @@ Ray Camera::generateRay(float pixelX, float pixelY) const
     Vector3 direction = (forward + right * x + up * y).normalise();
 
     Ray ray(position, direction);
-    std::cout << "Generated Ray Origin: (" << ray.origin.x << ", " << ray.origin.y << ", " << ray.origin.z << ") "
-              << "Direction: (" << ray.direction.x << ", " << ray.direction.y << ", " << ray.direction.z << ")\n";
+    // std::cout << "Generated Ray Origin: (" << ray.origin.x << ", " << ray.origin.y << ", " << ray.origin.z << ") "
+    //           << "Direction: (" << ray.direction.x << ", " << ray.direction.y << ", " << ray.direction.z << ")\n";
     return ray;
 }
 
@@ -1257,7 +1261,7 @@ bool Triangle::intersect(const Ray &ray, Intersection &hit) const
     float a = edge1.dot(h);
 
     if (std::fabs(a) < EPSILON)
-        return false;
+        return false; // Ray is parallel to the triangle
 
     float f = 1.0f / a;
     Vector3 s = ray.origin - v0;
@@ -1278,18 +1282,16 @@ bool Triangle::intersect(const Ray &ray, Intersection &hit) const
     { // Ray intersection
         hit.distance = t_val;
         hit.point = ray.origin + ray.direction * t_val;
-        hit.normal = edge1.cross(edge2).normalise();
+
+        // Compute the normal and ensure it's facing the ray
+        Vector3 normal = edge1.cross(edge2).normalise();
+        if (ray.direction.dot(normal) > 0)
+            normal = -normal; // Flip normal if it's facing away
+
+        hit.normal = normal;
         hit.material = material;
 
-        // Removed the unused variable 'w'
-        // float w = 1.0f - u - v;
-
-        // Interpolate UV coordinates using barycentric coordinates (if needed)
-        // Currently unused, but kept for potential future use
-        // float texU = (1.0f - u - v) * uv0.x + u * uv1.x + v * uv2.x;
-        // float texV = (1.0f - u - v) * uv0.y + u * uv1.y + v * uv2.y;
-
-        // Store barycentric coordinates in the Intersection for potential use
+        // Store barycentric coordinates for potential texture mapping
         hit.u = u;
         hit.v = v;
 
@@ -1664,6 +1666,7 @@ private:
 #include "Material.h"     // Material class
 #include "Intersection.h" // Intersection structure
 #include "Object.h"       // Base class for objects
+#include "BoundingBox.h"  // BoundingBox class
 
 class Cylinder : public Object
 {
@@ -1674,6 +1677,7 @@ public:
     // Method to check ray-cylinder intersection and populate Intersection
     bool intersect(const Ray &ray, Intersection &hit) const override;
 
+    // Getters
     const Vector3 &getCenter() const { return center; }
     const Vector3 &getAxis() const { return axis; }
     float getRadius() const { return radius; }
@@ -1922,18 +1926,21 @@ public:
              const Vector3 &uv0 = Vector3(0, 0, 0), const Vector3 &uv1 = Vector3(1, 0, 0), const Vector3 &uv2 = Vector3(0, 1, 0))
         : v0(vertex0), v1(vertex1), v2(vertex2), uv0(uv0), uv1(uv1), uv2(uv2), material(m) {}
 
+    // Intersection method overridden from Object
     bool intersect(const Ray &ray, Intersection &hit) const override;
 
+    // Get the bounding box of the triangle
+    BoundingBox getBoundingBox() const override;
+
+private:
     // Triangle vertices
     Vector3 v0, v1, v2;
 
     // UV coordinates at each vertex
     Vector3 uv0, uv1, uv2;
 
+    // Material of the triangle
     Material material;
-
-    // Get the bounding box of the triangle
-    BoundingBox getBoundingBox() const override;
 };
 
 #endif // TRIANGLE_H
