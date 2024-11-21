@@ -47,6 +47,10 @@ target_link_libraries(test_raytracer PRIVATE raytracer_lib)
 add_executable(test_binary_rendering_mode test/test_binary_rendering_mode.cpp test/catch_amalgamated.cpp)
 target_link_libraries(test_binary_rendering_mode PRIVATE test_binary_rendering_mode)
 
+#test executable for shadow
+add_executable(test_shadow test/test_shadow.cpp test/catch_amalgamated.cpp)
+target_link_libraries(test_shadow PRIVATE test_shadow)
+
 # Add custom targets for each test executable
 add_custom_target(run_test_ray COMMAND test_ray DEPENDS test_ray)
 add_custom_target(run_test_camera COMMAND test_camera DEPENDS test_camera)
@@ -56,3 +60,4 @@ add_custom_target(run_test_cylinder COMMAND test_cylinder DEPENDS test_cylinder)
 add_custom_target(run_test_scene_loader COMMAND test_scene_loader DEPENDS test_scene_loader)
 add_custom_target(run_test_raytracer COMMAND test_raytracer DEPENDS test_raytracer)
 add_custom_target(run_test_binary_rendering_mode COMMAND test_binary_rendering_mode DEPENDS test_binary_rendering_mode)
+add_custom_target(run_test_shadow COMMAND test_shadow DEPENDS test_shadow)

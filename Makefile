@@ -26,6 +26,7 @@ TEST_TARGET_SPHERE = $(BIN_DIR)/test_sphere
 TEST_TARGET_RAY = $(BIN_DIR)/test_ray
 TEST_TARGET_TRIANGLE = $(BIN_DIR)/test_triangle
 TEST_TARGET_CYLINDER = $(BIN_DIR)/test_cylinder
+TEST_TARGET_SHADOW = $(BIN_DIR)/test_shadow
 TEST_TARGET_SCENE_LOADER = $(BIN_DIR)/test_scene_loader
 TEST_TARGET_RAYTRACER = $(BIN_DIR)/test_raytracer  
 TEST_TARGET_BINARY_RENDERING_MODE = $(BIN_DIR)/test_binary_rendering_mode
@@ -60,6 +61,11 @@ test_triangle: $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamate
 test_cylinder: $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CYLINDER) $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o
 	./$(TEST_TARGET_CYLINDER)
+
+# Compile and run the test_shadow executable
+test_shadow: $(OBJECTS) $(OBJ_DIR)/test_shadow.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SHADOW) $(OBJECTS) $(OBJ_DIR)/test_shadow.o $(OBJ_DIR)/catch_amalgamated.o
+	./$(TEST_TARGET_SHADOW)
 
 # Rule for compiling and running the test_scene_loader executable
 test_scene_loader: $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
