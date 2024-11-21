@@ -24,7 +24,7 @@ Ray Camera::generateRay(float pixelX, float pixelY) const
     float scale = std::tan(fov / 2.0f);
 
     // Normalize pixel coordinates to the range [-1, 1] for viewport space
-    float x = (2 * (pixelX + 0.5f) / width - 1) * aspectRatio * scale;
+    float x = (-2 * (pixelX + 0.5f) / width + 1) * aspectRatio * scale;
     float y = (1 - 2 * (pixelY + 0.5f) / height) * scale;
 
     // Calculate the direction of the ray through the pixel

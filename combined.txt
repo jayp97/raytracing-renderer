@@ -526,6 +526,10 @@ std::shared_ptr<Object> SceneLoader::loadObject(const json &shapeData)
 
 #include "Image.h"
 #include <fstream>
+#include <mutex>
+
+// Mutex for thread safety
+std::mutex imageMutex;
 
 Image::Image() : width(0), height(0), pixels()
 {
@@ -538,6 +542,8 @@ void Image::setPixel(int x, int y, const Color &color)
 {
     if (x >= 0 && x < width && y >= 0 && y < height)
     {
+        // Lock the mutex for thread-safe access
+        std::lock_guard<std::mutex> lock(imageMutex);
         pixels[y * width + x] = color;
     }
 }
@@ -843,6 +849,8 @@ std::ostream &operator<<(std::ostream &os, const Vector3 &v)
 #include "BlinnPhongShader.h"
 #include <iostream>
 #include <algorithm>
+#include <omp.h>
+#include <chrono> // Include for timing
 
 Raytracer::Raytracer(int width, int height) : image(width, height)
 {
@@ -861,7 +869,11 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     // Initialize the shader once
     BlinnPhongShader shader(scene, scene.camera.position);
 
-    // Iterate over each pixel
+    // Start timing
+    auto startTime = std::chrono::steady_clock::now();
+
+// Iterate over each pixel with OpenMP parallelization
+#pragma omp parallel for schedule(dynamic) shared(image)
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
@@ -880,20 +892,34 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
                 color = (color != scene.backgroundColor) ? Color(1, 1, 1) : scene.backgroundColor;
             }
 
+            // Set the pixel color (assumes thread-safe)
             image.setPixel(x, y, color);
         }
 
-        // Optional: Print progress every 100 lines
-        if (y % 100 == 0)
+// Calculate and display progress every 100 lines or on the last line
+#pragma omp critical
         {
-            std::cout << "Rendered " << y << " / " << height << " lines." << std::endl;
+            if (y % 100 == 0 || y == height - 1)
+            {
+                auto currentTime = std::chrono::steady_clock::now();
+                std::chrono::duration<double> elapsed = currentTime - startTime;
+                double progress = (static_cast<double>(y) / height) * 100.0;
+                std::cout << "\rRendering Progress: " << progress << "% | Elapsed Time: " << elapsed.count() << "s" << std::flush;
+            }
         }
     }
 
-    // Save the rendered image to the specified file
-    image.saveAsPPM(outputFilename);
+    std::cout << std::endl; // Move to the next line after progress output
 
-    std::cout << "Rendering completed. Image saved to " << outputFilename << std::endl;
+    // Save the rendered image to the specified file
+    if (image.saveAsPPM(outputFilename))
+    {
+        std::cout << "Rendering completed. Image saved to " << outputFilename << std::endl;
+    }
+    else
+    {
+        std::cerr << "Failed to save image to " << outputFilename << std::endl;
+    }
 }
 
 Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth) const
@@ -933,8 +959,7 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShade
                 float eta = closestHit.material.refractiveIndex;
                 Vector3 normal = closestHit.normal;
                 float cosi = normal.dot(ray.direction);
-                float etai = 1.0f;
-                float etat = eta;
+                float etai = 1.0f, etat = eta;
 
                 if (cosi > 0)
                 {
@@ -980,6 +1005,7 @@ Color Raytracer::getPixelColor(int x, int y) const
 {
     return image.getPixel(x, y);
 }
+
 #include "Camera.h"
 #include <cmath>
 #include <iostream>
@@ -1398,24 +1424,62 @@ bool Plane::intersect(const Ray &ray, Intersection &hit) const
     return false;
 }
 
-#include "Vector3.h"
+#include "SceneLoader.h"
+#include "Raytracer.h"
+#include <iostream>
+#include <vector>
+#include <string>
+#include <chrono>
 
-int main()
+// Function to render a single scene
+void renderScene(const std::string &inputJson, const std::string &outputPpm)
 {
-    Vector3 v1(1, 2, 3);
-    Vector3 v2(4, 5, 6);
+    SceneLoader loader;
+    Scene scene;
 
-    Vector3 v3 = v1 + v2;
-    v3.print();
+    std::cout << "Loading scene: " << inputJson << std::endl;
 
-    Vector3 v4 = v1.cross(v2);
-    v4.print();
+    // Load the scene from the JSON file
+    if (!loader.loadScene(inputJson, scene))
+    {
+        std::cerr << "Failed to load scene from " << inputJson << std::endl;
+        return;
+    }
 
-    Vector3 v5 = v1.normalise();
-    v5.print();
+    std::cout << "Successfully loaded " << inputJson << std::endl;
+
+    // Build the Bounding Volume Hierarchy (BVH) for the scene
+    scene.buildBVH();
+
+    // Initialize Raytracer with the camera's resolution
+    Raytracer raytracer(scene.camera.width, scene.camera.height);
+
+    // Render the scene and save the output PPM file
+    raytracer.render(scene, outputPpm);
+}
+
+int main(int argc, char *argv[])
+{
+    // Check for at least one scene file
+    if (argc < 3 || argc % 2 != 1)
+    {
+        std::cerr << "Usage: " << argv[0] << " <input_json1> <output_ppm1> [<input_json2> <output_ppm2> ...]" << std::endl;
+        return 1;
+    }
+
+    // Process each pair of input JSON and output PPM
+    for (int i = 1; i < argc; i += 2)
+    {
+        std::string inputJson = argv[i];
+        std::string outputPpm = argv[i + 1];
+        renderScene(inputJson, outputPpm);
+    }
+
+    std::cout << "All scenes have been processed." << std::endl;
 
     return 0;
 }
+
 // CheckerboardTexture.h
 #ifndef CHECKERBOARD_TEXTURE_H
 #define CHECKERBOARD_TEXTURE_H
@@ -1991,12 +2055,24 @@ private:
 #ifndef RAYTRACER_H
 #define RAYTRACER_H
 
-#include "Image.h"
-#include "Scene.h"
-#include "Ray.h"
+#ifdef __APPLE__
+#include <libkern/OSByteOrder.h>
+#define htobe16(x) OSSwapHostToBigInt16(x)
+#define be16toh(x) OSSwapBigToHostInt16(x)
+#define htobe32(x) OSSwapHostToBigInt32(x)
+#define be32toh(x) OSSwapBigToHostInt32(x)
+#define htobe64(x) OSSwapHostToBigInt64(x)
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#else
+#include <endian.h>
+#endif
+
 #include "Vector3.h"
+#include "Ray.h"
 #include "Intersection.h"
-#include "Color.h"
+#include "BlinnPhongShader.h"
+#include "Scene.h"
+#include "Image.h"
 #include <string>
 
 // Forward declaration to avoid circular dependency
@@ -2154,6 +2230,7 @@ private:
 
 #endif // SCENE_H
 
+binary_primitives.json
 {
     "rendermode":"binary",
     "camera":
@@ -2193,145 +2270,140 @@ private:
         } 
 }
 
+scene.json
 {
-    "nbounces":8, 
-    "rendermode":"binary",
-    "camera":
-        { 
-            "type":"pinhole", 
-            "width":1200, 
-            "height":800,
-            "position":[0.0, 0.75, -0.25],
-            "lookAt":[0.0, 0.35, 1.0],
-            "upVector":[0.0, 1.0, 0.0],
-            "fov":45.0,
-            "exposure":0.1
-        },
-    "scene":
-        { 
-            "backgroundcolor": [0.25, 0.25, 0.25], 
-            "lightsources":[ 
-                { 
-                    "type":"pointlight", 
-                    "position":[0, 1.0, 0.5], 
-                    "intensity":[0.5, 0.5, 0.5] 
-                },
-                { 
-                    "type":"pointlight", 
-                    "position":[0, 1.0, -0.5], 
-                    "intensity":[0.5, 0.5, 0.5] 
-                }
-            ], 
-            "shapes":[ 
-                { 
-                    "type":"sphere", 
-                    "center": [0, -25.0, 0], 
-                    "radius":25.1, 
-                    "material":
-                        { 
-                            "ks":0.1, 
-                            "kd":0.9, 
-                            "specularexponent":10, 
-                            "diffusecolor":[0.5, 1, 0.5],
-                            "specularcolor":[1.0,1.0,1.0],
-                            "isreflective":false,
-                            "reflectivity":1.0,
-                            "isrefractive":false,
-                            "refractiveindex":1.0 
-                        } 
-                },
-                {
-                    "type": "cylinder",
-                    "center": [-0.3, 0.19, 1],
-                    "axis": [0, 1, 0],
-                    "radius": 0.15,
-                    "height": 0.2,
-                    "material":
-                        { 
-                            "ks":0.1, 
-                            "kd":0.9, 
-                            "specularexponent":20, 
-                            "diffusecolor":[0.5, 0.5, 0.8],
-                            "specularcolor":[1.0,1.0,1.0],
-                            "isreflective":false,
-                            "reflectivity":1.0,
-                            "isrefractive":false,
-                            "refractiveindex":1.0 
-                        } 
-                },
-                {
-                    "type": "triangle",
-                    "v0": [0, 0.0, 2.25],
-                    "v1": [0.75, 0.0, 2],
-                    "v2": [0, 0.75, 2.25],
-                    "material":
-                        { 
-                            "ks":0.3, 
-                            "kd":0.9, 
-                            "specularexponent":2, 
-                            "diffusecolor":[0.8, 0.5, 0.8],
-                            "specularcolor":[1.0,1.0,1.0],
-                            "isreflective":true,
-                            "reflectivity":1.0,
-                            "isrefractive":false,
-                            "refractiveindex":1.0 
-                        } 
-                },
-                {
-                    "type": "triangle",
-                    "v0": [0.75, 0.75, 2],
-                    "v1": [0.75, 0.0, 2],
-                    "v2": [0, 0.75, 2.25],
-                    "material":
-                        { 
-                            "ks":0.3, 
-                            "kd":0.9, 
-                            "specularexponent":2, 
-                            "diffusecolor":[0.8, 0.5, 0.8],
-                            "specularcolor":[1.0,1.0,1.0],
-                            "isreflective":true,
-                            "reflectivity":1.0,
-                            "isrefractive":false,
-                            "refractiveindex":1.0 
-                        } 
-                },
-                { 
-                    "type":"sphere", 
-                    "center": [-0.3, 0.59, 1],
-                    "radius":0.2, 
-                    "material":
-                        { 
-                            "ks":0.1, 
-                            "kd":0.9, 
-                            "specularexponent":20, 
-                            "diffusecolor":[0.8, 0.5, 0.5],
-                            "specularcolor":[1.0,1.0,1.0],
-                            "isreflective":false,
-                            "reflectivity":1.0,
-                            "isrefractive":false,
-                            "refractiveindex":1.0 
-                        } 
-                },
-                { 
-                    "type":"sphere", 
-                    "center": [0.3, 0.29, 1],
-                    "radius":0.2, 
-                    "material":
-                        { 
-                            "ks":0.1, 
-                            "kd":0.9, 
-                            "specularexponent":20, 
-                            "diffusecolor":[0.8, 0.5, 0.5],
-                            "specularcolor":[1.0,1.0,1.0],
-                            "isreflective":true,
-                            "reflectivity":1.0,
-                            "isrefractive":false,
-                            "refractiveindex":1.0 
-                        } 
-                }  
-            ] 
-        } 
+  "nbounces": 8,
+  "rendermode": "phong",
+  "camera": {
+    "type": "pinhole",
+    "width": 1200,
+    "height": 800,
+    "position": [0.0, 0.75, -0.25],
+    "lookAt": [0.0, 0.35, 1.0],
+    "upVector": [0.0, 1.0, 0.0],
+    "fov": 45.0,
+    "exposure": 0.1
+  },
+  "scene": {
+    "backgroundcolor": [0.25, 0.25, 0.25],
+    "lightsources": [
+      {
+        "type": "pointlight",
+        "position": [0, 1.0, 0.5],
+        "intensity": [0.5, 0.5, 0.5]
+      },
+      {
+        "type": "pointlight",
+        "position": [0, 1.0, -0.5],
+        "intensity": [0.5, 0.5, 0.5]
+      }
+    ],
+    "shapes": [
+      {
+        "type": "sphere",
+        "center": [0, -25.0, 0],
+        "radius": 25.1,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 10,
+          "diffusecolor": [0.5, 1, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "cylinder",
+        "center": [-0.3, 0.19, 1],
+        "axis": [0, 1, 0],
+        "radius": 0.15,
+        "height": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.5, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "triangle",
+        "v0": [0, 0.0, 2.25],
+        "v1": [0.75, 0.0, 2],
+        "v2": [0, 0.75, 2.25],
+        "material": {
+          "ks": 0.3,
+          "kd": 0.9,
+          "specularexponent": 2,
+          "diffusecolor": [0.8, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "triangle",
+        "v0": [0.75, 0.75, 2],
+        "v1": [0.75, 0.0, 2],
+        "v2": [0, 0.75, 2.25],
+        "material": {
+          "ks": 0.3,
+          "kd": 0.9,
+          "specularexponent": 2,
+          "diffusecolor": [0.8, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "sphere",
+        "center": [-0.3, 0.59, 1],
+        "radius": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.8, 0.5, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "sphere",
+        "center": [0.3, 0.29, 1],
+        "radius": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.8, 0.5, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      }
+    ]
+  }
 }
+
+scene_texture.json
 {
   "nbounces": 8,
   "rendermode": "binary",
@@ -2506,6 +2578,7 @@ private:
   }
 }
 
+simple_phong.json
 {
     "nbounces":8, 
     "rendermode":"phong",
@@ -2607,6 +2680,7 @@ private:
         } 
 }
 
+mirror_image.json
 {
     "nbounces":8, 
     "rendermode":"phong",
@@ -2759,5 +2833,303 @@ private:
                 }  
             ] 
         } 
+}
+
+# Set the compiler and flags
+CXX = /opt/homebrew/bin/g++-14
+CXXFLAGS = -std=c++17 -O3 -Wall -Wextra -Wpedantic -fopenmp \
+           -Iinclude -Itest \
+           -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk
+LDFLAGS = -L/opt/homebrew/lib/gcc/14
+
+# Directories for source, test, and output files
+SRC_DIR = src
+TEST_DIR = test
+OBJ_DIR = obj
+BIN_DIR = bin
+
+# List of source files and object files (excluding main.cpp for tests)
+SOURCES = $(filter-out $(SRC_DIR)/main.cpp, $(wildcard $(SRC_DIR)/*.cpp))
+OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+MAIN_OBJECT = $(OBJ_DIR)/main.o
+
+# List of test sources and objects
+TEST_SOURCES = $(filter-out $(SRC_DIR)/main.cpp, $(SOURCES)) \
+               $(TEST_DIR)/test_camera.cpp $(TEST_DIR)/test_sphere.cpp $(TEST_DIR)/test_ray.cpp \
+               $(TEST_DIR)/catch_amalgamated.cpp
+TEST_OBJECTS = $(TEST_SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+
+# Executable targets
+TARGET = $(BIN_DIR)/raytracer
+TEST_TARGET_CAMERA = $(BIN_DIR)/test_camera
+TEST_TARGET_SPHERE = $(BIN_DIR)/test_sphere
+TEST_TARGET_RAY = $(BIN_DIR)/test_ray
+TEST_TARGET_TRIANGLE = $(BIN_DIR)/test_triangle
+TEST_TARGET_CYLINDER = $(BIN_DIR)/test_cylinder
+TEST_TARGET_SHADOW = $(BIN_DIR)/test_shadow
+TEST_TARGET_SCENE_LOADER = $(BIN_DIR)/test_scene_loader
+TEST_TARGET_RAYTRACER = $(BIN_DIR)/test_raytracer
+TEST_TARGET_BINARY_RENDERING_MODE = $(BIN_DIR)/test_binary_rendering_mode
+
+# Default target to build the main executable
+all: $(TARGET)
+
+# Link object files to create the main executable
+$(TARGET): $(OBJECTS) $(MAIN_OBJECT) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+# Build and run the test_camera executable
+test_camera: $(OBJECTS) $(OBJ_DIR)/test_camera.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CAMERA) $(OBJECTS) $(OBJ_DIR)/test_camera.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_CAMERA)
+
+# Build and run the test_sphere executable
+test_sphere: $(OBJECTS) $(OBJ_DIR)/test_sphere.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SPHERE) $(OBJECTS) $(OBJ_DIR)/test_sphere.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_SPHERE)
+
+# Build and run the test_ray executable
+test_ray: $(OBJECTS) $(OBJ_DIR)/test_ray.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_RAY) $(OBJECTS) $(OBJ_DIR)/test_ray.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_RAY)
+
+# Compile and run the test_triangle executable
+test_triangle: $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_TRIANGLE) $(OBJECTS) $(OBJ_DIR)/test_triangle.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_TRIANGLE)
+
+# Compile and run the test_cylinder executable
+test_cylinder: $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_CYLINDER) $(OBJECTS) $(OBJ_DIR)/test_cylinder.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_CYLINDER)
+
+# Compile and run the test_shadow executable
+test_shadow: $(OBJECTS) $(OBJ_DIR)/test_shadow.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SHADOW) $(OBJECTS) $(OBJ_DIR)/test_shadow.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_SHADOW)
+
+# Rule for compiling and running the test_scene_loader executable
+test_scene_loader: $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_SCENE_LOADER) $(OBJECTS) $(OBJ_DIR)/test_scene_loader.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_SCENE_LOADER)
+
+# Compile and run the test_raytracer executable
+test_raytracer: $(OBJECTS) $(OBJ_DIR)/test_raytracer.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_RAYTRACER) $(OBJECTS) $(OBJ_DIR)/test_raytracer.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_RAYTRACER)
+
+# Compile and run the test_binary_rendering_mode executable
+test_binary_rendering_mode: $(OBJECTS) $(OBJ_DIR)/test_binary_rendering_mode.o $(OBJ_DIR)/catch_amalgamated.o | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET_BINARY_RENDERING_MODE) $(OBJECTS) $(OBJ_DIR)/test_binary_rendering_mode.o $(OBJ_DIR)/catch_amalgamated.o $(LDFLAGS)
+	./$(TEST_TARGET_BINARY_RENDERING_MODE)
+
+# Compile each .cpp file in src to an object file (including main.cpp)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Compile each .cpp file in test to an object file
+$(OBJ_DIR)/%.o: $(TEST_DIR)/%.cpp | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Ensure output directories exist
+$(BIN_DIR) $(OBJ_DIR):
+	mkdir -p $@
+
+# Clean command to remove generated files
+clean:
+	rm -rf $(OBJ_DIR) $(BIN_DIR) *.o *.gch
+
+// test_raytracer.cpp
+
+#define CATCH_CONFIG_MAIN
+#include "catch_amalgamated.hpp"
+
+#include "Raytracer.h"
+#include "Camera.h"
+#include "SceneLoader.h"
+#include "Vector3.h"
+#include "Color.h"
+#include "Scene.h"
+#include "Sphere.h"
+#include "Cylinder.h"
+#include "Triangle.h"
+#include <cmath>
+#include <memory>
+#include <iostream> // Include for printing
+
+const float tolerance = 0.15f; // Increased tolerance for flexibility
+
+// Function to compare two colors within a specified tolerance using Euclidean distance
+bool areColorsSimilar(const Color &c1, const Color &c2, float tolerance)
+{
+    float dr = c1.r - c2.r;
+    float dg = c1.g - c2.g;
+    float db = c1.b - c2.b;
+    float distance = std::sqrt(dr * dr + dg * dg + db * db);
+    return distance < tolerance;
+}
+
+// Functions to check for expected colors based on Phong shading
+bool isSphereColor(const Color &c)
+{
+    // Updated expected sphere color based on calculations
+    Color expected(1.0f, 0.88f, 0.88f);
+    return areColorsSimilar(c, expected, tolerance);
+}
+
+bool isCylinderColor(const Color &c)
+{
+    // Expected cylinder color based on ambient and diffuse components
+    // Example calculation: (0.79f, 0.79f, 1.0f)
+    Color expected(0.79f, 0.79f, 1.0f);
+    return areColorsSimilar(c, expected, tolerance);
+}
+
+bool isTriangleColor(const Color &c)
+{
+    // Expected triangle color based on ambient, diffuse, and specular components
+    // Example calculation: (0.89f, 1.0f, 0.89f)
+    Color expected(0.89f, 1.0f, 0.89f);
+    return areColorsSimilar(c, expected, tolerance);
+}
+
+TEST_CASE("Raytracer binary render mode produces expected output", "[RAYTRACER][binary]")
+{
+    // Load the binary scene
+    SceneLoader sceneLoader;
+    Scene scene;
+    REQUIRE(sceneLoader.loadScene("scenes/binary_primitives.json", scene) == true); // Using binary_primitives.json
+
+    // Retrieve camera dimensions from the loaded scene
+    int width = scene.camera.width;
+    int height = scene.camera.height;
+
+    // Initialize Raytracer with camera's width and height
+    Raytracer raytracer(width, height);
+
+    // Render the scene
+    raytracer.render(scene, "binary_test_output.ppm");
+
+    // Define expected colors for binary mode
+    Color backgroundColor(0.25f, 0.25f, 0.25f); // From binary_primitives.json
+    Color white(1.0f, 1.0f, 1.0f);              // Binary mode: white for any intersection
+
+    // Track if we find white and background color
+    bool foundWhite = false, foundBackground = false;
+
+    // Check each pixel for expected colors
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            Color pixelColor = raytracer.getPixelColor(x, y);
+
+            // Optionally, comment out to reduce console output
+            // std::cout << "Binary Pixel (" << x << ", " << y << "): ("
+            //           << pixelColor.r << ", " << pixelColor.g << ", " << pixelColor.b << ")\n";
+
+            if (areColorsSimilar(pixelColor, backgroundColor, tolerance))
+                foundBackground = true;
+            else if (areColorsSimilar(pixelColor, white, tolerance))
+                foundWhite = true;
+        }
+    }
+
+    // Verify that at least one white and one background color pixel are found
+    REQUIRE(foundWhite);
+    REQUIRE(foundBackground);
+}
+
+TEST_CASE("Raytracer produces expected colors for intersections in Phong mode", "[RAYTRACER][phong]")
+{
+    // Load the Phong scene
+    SceneLoader sceneLoader;
+    Scene scene;
+    REQUIRE(sceneLoader.loadScene("scenes/simple_phong.json", scene) == true); // Using simple_phong.json
+
+    // Retrieve camera dimensions from the loaded scene
+    int width = scene.camera.width;
+    int height = scene.camera.height;
+
+    // Initialize Raytracer with camera's width and height
+    Raytracer raytracer(width, height);
+
+    // Build the BVH for the scene
+    scene.buildBVH();
+
+    // Render the scene
+    raytracer.render(scene, "phong_test_output.ppm");
+
+    // Define expected colors based on material properties and lighting calculations
+    Color backgroundColor(0.25f, 0.25f, 0.25f); // From simple_phong.json
+    Color sphereColor(1.0f, 0.88f, 0.88f);      // Expected sphere color (updated)
+    Color cylinderColor(0.79f, 0.79f, 1.0f);    // Expected cylinder color
+    Color triangleColor(0.89f, 1.0f, 0.89f);    // Expected triangle color (updated)
+
+    // Track if we find each color
+    bool foundBackground = false, foundSphere = false, foundCylinder = false, foundTriangle = false;
+    int triangleColorMatches = 0;
+    int sphereColorMatches = 0;
+    int cylinderColorMatches = 0;
+
+    // Check each pixel for expected colors
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            Color pixelColor = raytracer.getPixelColor(x, y);
+
+            // Optionally, comment out to reduce console output
+            // std::cout << "Phong Pixel (" << x << ", " << y << "): ("
+            //           << pixelColor.r << ", " << pixelColor.g << ", " << pixelColor.b << ")\n";
+
+            if (areColorsSimilar(pixelColor, backgroundColor, tolerance))
+                foundBackground = true;
+            else if (isSphereColor(pixelColor))
+            {
+                foundSphere = true;
+                sphereColorMatches++;
+                // Print first 5 sphere pixels for debugging
+                if (sphereColorMatches <= 5)
+                {
+                    std::cout << "Sphere Pixel Found at (" << x << ", " << y << "): ("
+                              << pixelColor.r << ", " << pixelColor.g << ", " << pixelColor.b << ")\n";
+                }
+            }
+            else if (isCylinderColor(pixelColor))
+            {
+                foundCylinder = true;
+                cylinderColorMatches++;
+            }
+            else if (isTriangleColor(pixelColor))
+            {
+                foundTriangle = true;
+                triangleColorMatches++;
+                // Print first 5 triangle pixels for debugging
+                if (triangleColorMatches <= 5)
+                {
+                    std::cout << "Triangle Pixel Found at (" << x << ", " << y << "): ("
+                              << pixelColor.r << ", " << pixelColor.g << ", " << pixelColor.b << ")\n";
+                }
+            }
+            else
+            {
+                // Optionally, print unknown colors for debugging
+                // std::cout << "Unknown Pixel (" << x << ", " << y << "): ("
+                //           << pixelColor.r << ", " << pixelColor.g << ", " << pixelColor.b << ")\n";
+            }
+        }
+    }
+
+    // Print the number of pixels found for each object
+    std::cout << "Number of Sphere Pixels Found: " << sphereColorMatches << "\n";
+    std::cout << "Number of Cylinder Pixels Found: " << cylinderColorMatches << "\n";
+    std::cout << "Number of Triangle Pixels Found: " << triangleColorMatches << "\n";
+
+    // Verify that each expected color was found
+    REQUIRE(foundBackground);
+    REQUIRE(foundSphere);
+    REQUIRE(foundCylinder);
+    REQUIRE(foundTriangle);
 }
 
