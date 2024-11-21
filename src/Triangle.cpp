@@ -13,7 +13,7 @@ bool Triangle::intersect(const Ray &ray, Intersection &hit) const
     float a = edge1.dot(h);
 
     if (std::fabs(a) < EPSILON)
-        return false;
+        return false; // Ray is parallel to the triangle
 
     float f = 1.0f / a;
     Vector3 s = ray.origin - v0;
@@ -34,18 +34,16 @@ bool Triangle::intersect(const Ray &ray, Intersection &hit) const
     { // Ray intersection
         hit.distance = t_val;
         hit.point = ray.origin + ray.direction * t_val;
-        hit.normal = edge1.cross(edge2).normalise();
+
+        // Compute the normal and ensure it's facing the ray
+        Vector3 normal = edge1.cross(edge2).normalise();
+        if (ray.direction.dot(normal) > 0)
+            normal = -normal; // Flip normal if it's facing away
+
+        hit.normal = normal;
         hit.material = material;
 
-        // Removed the unused variable 'w'
-        // float w = 1.0f - u - v;
-
-        // Interpolate UV coordinates using barycentric coordinates (if needed)
-        // Currently unused, but kept for potential future use
-        // float texU = (1.0f - u - v) * uv0.x + u * uv1.x + v * uv2.x;
-        // float texV = (1.0f - u - v) * uv0.y + u * uv1.y + v * uv2.y;
-
-        // Store barycentric coordinates in the Intersection for potential use
+        // Store barycentric coordinates for potential texture mapping
         hit.u = u;
         hit.v = v;
 

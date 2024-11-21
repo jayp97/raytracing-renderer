@@ -17,18 +17,21 @@ public:
              const Vector3 &uv0 = Vector3(0, 0, 0), const Vector3 &uv1 = Vector3(1, 0, 0), const Vector3 &uv2 = Vector3(0, 1, 0))
         : v0(vertex0), v1(vertex1), v2(vertex2), uv0(uv0), uv1(uv1), uv2(uv2), material(m) {}
 
+    // Intersection method overridden from Object
     bool intersect(const Ray &ray, Intersection &hit) const override;
 
+    // Get the bounding box of the triangle
+    BoundingBox getBoundingBox() const override;
+
+private:
     // Triangle vertices
     Vector3 v0, v1, v2;
 
     // UV coordinates at each vertex
     Vector3 uv0, uv1, uv2;
 
+    // Material of the triangle
     Material material;
-
-    // Get the bounding box of the triangle
-    BoundingBox getBoundingBox() const override;
 };
 
 #endif // TRIANGLE_H

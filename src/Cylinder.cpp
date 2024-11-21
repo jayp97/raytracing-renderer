@@ -1,7 +1,8 @@
 // Cylinder.cpp
 #include "Cylinder.h"
-#include <cmath>
-#include <limits>
+#include <cmath>     // For sqrt, fabs, etc.
+#include <limits>    // For numeric_limits
+#include <algorithm> // For std::min and std::max
 
 // Constructor with Material parameter
 Cylinder::Cylinder(const Vector3 &c, const Vector3 &a, float r, float h, const Material &m)
@@ -20,24 +21,25 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
     float b = 2.0f * rayDirPerp.dot(ocPerp);
     float c = ocPerp.dot(ocPerp) - radius * radius;
 
-    float discriminant = b * b - 4 * a * c;
+    float discriminant = b * b - 4.0f * a * c;
     bool hitCylinderSide = false;
     float tSide = std::numeric_limits<float>::max();
 
     // Check for intersection with the side surface of the cylinder
-    if (discriminant >= 0)
+    if (discriminant >= 0.0f)
     {
         float sqrtDisc = std::sqrt(discriminant);
         float t1 = (-b - sqrtDisc) / (2.0f * a);
         float t2 = (-b + sqrtDisc) / (2.0f * a);
 
+        // Check both possible intersection points
         for (float tTemp : {t1, t2})
         {
             if (tTemp > 1e-4f) // Avoid self-intersection
             {
                 Vector3 point = ray.origin + tTemp * ray.direction;
-                float heightCheck = (point - center).dot(axis);
-                if (heightCheck >= 0 && heightCheck <= height)
+                float projection = (point - center).dot(axis);
+                if (projection >= 0.0f && projection <= height)
                 {
                     if (tTemp < tSide)
                     {
@@ -84,9 +86,9 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
     // Prepare orthogonal vectors for cap UV mapping
     Vector3 uDir, vDir;
     if (std::fabs(axis.x) > std::fabs(axis.y))
-        uDir = Vector3(-axis.z, 0, axis.x).normalise();
+        uDir = Vector3(-axis.z, 0.0f, axis.x).normalise();
     else
-        uDir = Vector3(0, axis.z, -axis.y).normalise();
+        uDir = Vector3(0.0f, axis.z, -axis.y).normalise();
     vDir = axis.cross(uDir).normalise();
 
     // Check for intersection with the top and bottom caps
@@ -104,8 +106,8 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
         if (tCap > 1e-4f && tCap < tFinal)
         {
             Vector3 pCap = ray.origin + tCap * ray.direction;
-            Vector3 v = pCap - capCenter;
-            if (v.dot(v) <= radius * radius)
+            Vector3 vCap = pCap - capCenter;
+            if (vCap.dot(vCap) <= radius * radius)
             {
                 tFinal = tCap;
                 hit.point = pCap;
@@ -136,8 +138,8 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
         if (tCap > 1e-4f && tCap < tFinal)
         {
             Vector3 pCap = ray.origin + tCap * ray.direction;
-            Vector3 v = pCap - capCenter;
-            if (v.dot(v) <= radius * radius)
+            Vector3 vCap = pCap - capCenter;
+            if (vCap.dot(vCap) <= radius * radius)
             {
                 tFinal = tCap;
                 hit.point = pCap;
@@ -169,7 +171,7 @@ Vector3 Cylinder::getNormal(const Vector3 &point) const
     Vector3 projectionPoint = center + axis * projection;
 
     // Check if the point is on the side or caps
-    if (projection >= 0 && projection <= height)
+    if (projection >= 0.0f && projection <= height)
     {
         // Side surface
         Vector3 normal = (point - projectionPoint).normalise();
@@ -187,9 +189,10 @@ Vector3 Cylinder::getNormal(const Vector3 &point) const
     }
 }
 
+// Get the bounding box of the cylinder
 BoundingBox Cylinder::getBoundingBox() const
 {
-    // Approximate the bounding box by considering the cylinder's axis-aligned dimensions
+    // Calculate bounding box by considering the axis-aligned dimensions
     Vector3 radiusVec(radius, radius, radius);
 
     // Compute base and top centers

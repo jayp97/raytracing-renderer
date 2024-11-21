@@ -7,6 +7,7 @@
 #include "Material.h"     // Material class
 #include "Intersection.h" // Intersection structure
 #include "Object.h"       // Base class for objects
+#include "BoundingBox.h"  // BoundingBox class
 
 class Cylinder : public Object
 {
@@ -17,6 +18,7 @@ public:
     // Method to check ray-cylinder intersection and populate Intersection
     bool intersect(const Ray &ray, Intersection &hit) const override;
 
+    // Getters
     const Vector3 &getCenter() const { return center; }
     const Vector3 &getAxis() const { return axis; }
     float getRadius() const { return radius; }
