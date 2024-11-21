@@ -22,6 +22,9 @@ public:
     float getRadius() const { return radius; }
     float getHeight() const { return height; }
 
+    // Get the bounding box of the cylinder
+    BoundingBox getBoundingBox() const override;
+
 private:
     // Method to get the normal at a point on the cylinder
     Vector3 getNormal(const Vector3 &point) const;

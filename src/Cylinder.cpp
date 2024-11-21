@@ -186,3 +186,23 @@ Vector3 Cylinder::getNormal(const Vector3 &point) const
         return axis;
     }
 }
+
+BoundingBox Cylinder::getBoundingBox() const
+{
+    // Approximate the bounding box by considering the cylinder's axis-aligned dimensions
+    Vector3 radiusVec(radius, radius, radius);
+
+    // Compute base and top centers
+    Vector3 baseCenter = center;
+    Vector3 topCenter = center + axis * height;
+
+    // Initialize min and max points
+    Vector3 minPoint = baseCenter - radiusVec;
+    Vector3 maxPoint = baseCenter + radiusVec;
+
+    // Expand to include the top
+    minPoint = Vector3::min(minPoint, topCenter - radiusVec);
+    maxPoint = Vector3::max(maxPoint, topCenter + radiusVec);
+
+    return BoundingBox(minPoint, maxPoint);
+}

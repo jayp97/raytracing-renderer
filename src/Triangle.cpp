@@ -54,3 +54,18 @@ bool Triangle::intersect(const Ray &ray, Intersection &hit) const
         return false;
     }
 }
+
+BoundingBox Triangle::getBoundingBox() const
+{
+    Vector3 minPoint = Vector3(
+        std::min({v0.x, v1.x, v2.x}),
+        std::min({v0.y, v1.y, v2.y}),
+        std::min({v0.z, v1.z, v2.z}));
+
+    Vector3 maxPoint = Vector3(
+        std::max({v0.x, v1.x, v2.x}),
+        std::max({v0.y, v1.y, v2.y}),
+        std::max({v0.z, v1.z, v2.z}));
+
+    return BoundingBox(minPoint, maxPoint);
+}

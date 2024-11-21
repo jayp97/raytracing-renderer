@@ -49,3 +49,10 @@ bool Sphere::intersect(const Ray &ray, Intersection &hit) const
 
     return true;
 }
+
+BoundingBox Sphere::getBoundingBox() const
+{
+    Vector3 minPoint = center - Vector3(radius, radius, radius);
+    Vector3 maxPoint = center + Vector3(radius, radius, radius);
+    return BoundingBox(minPoint, maxPoint);
+}

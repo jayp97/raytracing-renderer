@@ -8,12 +8,13 @@
 #include "Light.h"   // Light class
 #include "Camera.h"  // Camera class
 #include "Vector3.h" // Vector3 class for colors and positions
+#include "BVHNode.h" // BVHNode class for acceleration structure
 
 class Scene
 {
 public:
     // Constructor
-    Scene() : backgroundColor(0.25f, 0.25f, 0.25f), renderMode("binary"), nbounces(1) {}
+    Scene() : backgroundColor(0.25f, 0.25f, 0.25f), renderMode("binary"), nbounces(1), bvhRoot(nullptr) {}
 
     // Scene components
     Camera camera;                                // Camera
@@ -35,8 +36,8 @@ public:
         lights.push_back(light);
     }
 
-    // Acceleration structure or method can be added here
-    // For example, a BVH tree or a grid
+    // Method to build the BVH tree
+    void buildBVH();
 
     // Intersection method to find the closest hit
     bool intersect(const Ray &ray, Intersection &closestHit) const
@@ -63,6 +64,7 @@ public:
 
 private:
     // Private members or helper methods if needed
+    std::shared_ptr<BVHNode> bvhRoot; // Root of the BVH tree
 };
 
 #endif // SCENE_H

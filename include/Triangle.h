@@ -25,6 +25,9 @@ public:
     Vector3 uv0, uv1, uv2;
 
     Material material;
+
+    // Get the bounding box of the triangle
+    BoundingBox getBoundingBox() const override;
 };
 
 #endif // TRIANGLE_H

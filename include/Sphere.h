@@ -22,6 +22,9 @@ public:
     Vector3 center;    // Center of Sphere
     float radius;      // Radius of Sphere
     Material material; // Material of Sphere
+
+    // Get the bounding box of the sphere
+    BoundingBox getBoundingBox() const override;
 };
 
 #endif // SPHERE_H

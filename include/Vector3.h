@@ -39,6 +39,14 @@ public:
     // Normalize vector
     Vector3 normalise() const;
 
+    // Add operator[] for component access
+    float &operator[](int index);
+    const float &operator[](int index) const;
+
+    // Static methods for min and max
+    static Vector3 min(const Vector3 &a, const Vector3 &b);
+    static Vector3 max(const Vector3 &a, const Vector3 &b);
+
     Vector3 reflect(const Vector3 &normal) const;
     Vector3 refract(const Vector3 &normal, float eta) const;
 

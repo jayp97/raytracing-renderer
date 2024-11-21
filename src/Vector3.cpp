@@ -131,6 +131,53 @@ Vector3 Vector3::operator*(const Vector3 &other) const
     return Vector3(x * other.x, y * other.y, z * other.z);
 }
 
+// operator[] for non-const access
+float &Vector3::operator[](int index)
+{
+    if (index == 0)
+        return x;
+    else if (index == 1)
+        return y;
+    else if (index == 2)
+        return z;
+    else
+    {
+        throw std::out_of_range("Index out of range for Vector3");
+    }
+}
+
+// operator[] for const access
+const float &Vector3::operator[](int index) const
+{
+    if (index == 0)
+        return x;
+    else if (index == 1)
+        return y;
+    else if (index == 2)
+        return z;
+    else
+    {
+        throw std::out_of_range("Index out of range for Vector3");
+    }
+}
+
+// Static methods for component-wise min and max
+Vector3 Vector3::min(const Vector3 &a, const Vector3 &b)
+{
+    return Vector3(
+        std::min(a.x, b.x),
+        std::min(a.y, b.y),
+        std::min(a.z, b.z));
+}
+
+Vector3 Vector3::max(const Vector3 &a, const Vector3 &b)
+{
+    return Vector3(
+        std::max(a.x, b.x),
+        std::max(a.y, b.y),
+        std::max(a.z, b.z));
+}
+
 // Reflect
 Vector3 Vector3::reflect(const Vector3 &normal) const
 {
