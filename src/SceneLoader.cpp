@@ -278,17 +278,30 @@ std::shared_ptr<Object> SceneLoader::loadObject(const json &shapeData)
             Vector3 v0(shapeData["v0"][0], shapeData["v0"][1], shapeData["v0"][2]);
             Vector3 v1(shapeData["v1"][0], shapeData["v1"][1], shapeData["v1"][2]);
             Vector3 v2(shapeData["v2"][0], shapeData["v2"][1], shapeData["v2"][2]);
-            return std::make_shared<Triangle>(v0, v1, v2, material);
+
+            // Load UV coordinates if available
+            Vector3 uv0(0.0f, 0.0f, 0.0f);
+            Vector3 uv1(1.0f, 0.0f, 0.0f);
+            Vector3 uv2(0.0f, 1.0f, 0.0f);
+            if (shapeData.contains("uv0"))
+            {
+                uv0 = Vector3(shapeData["uv0"][0], shapeData["uv0"][1], 0.0f);
+            }
+            if (shapeData.contains("uv1"))
+            {
+                uv1 = Vector3(shapeData["uv1"][0], shapeData["uv1"][1], 0.0f);
+            }
+            if (shapeData.contains("uv2"))
+            {
+                uv2 = Vector3(shapeData["uv2"][0], shapeData["uv2"][1], 0.0f);
+            }
+
+            return std::make_shared<Triangle>(v0, v1, v2, material, uv0, uv1, uv2);
         }
         else
         {
             std::cerr << "Invalid triangle format. Skipping object." << std::endl;
             return nullptr;
         }
-    }
-    else
-    {
-        std::cerr << "Unknown shape type: " << type << ". Skipping object." << std::endl;
-        return nullptr;
     }
 }

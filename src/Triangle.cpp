@@ -11,7 +11,6 @@ bool Triangle::intersect(const Ray &ray, Intersection &hit) const
     Vector3 h = ray.direction.cross(edge2);
     float a = edge1.dot(h);
 
-    // If a is near zero, the ray is parallel to the triangle
     if (std::fabs(a) < EPSILON)
         return false;
 
@@ -19,32 +18,39 @@ bool Triangle::intersect(const Ray &ray, Intersection &hit) const
     Vector3 s = ray.origin - v0;
     float u = f * s.dot(h);
 
-    // Check if the intersection is outside the triangle
     if (u < 0.0f || u > 1.0f)
         return false;
 
     Vector3 q = s.cross(edge1);
     float v = f * ray.direction.dot(q);
 
-    // Check if the intersection is outside the triangle
-    if (v < 0.0f || u + v > 1.0f)
+    if (v < 0.0f || (u + v) > 1.0f)
         return false;
 
-    // Calculate t to find out where the intersection point is on the ray
     float t_val = f * edge2.dot(q);
 
     if (t_val > EPSILON)
     { // Ray intersection
-        // Populate the Intersection structure
         hit.distance = t_val;
         hit.point = ray.origin + ray.direction * t_val;
-        hit.normal = edge1.cross(edge2).normalise(); // Ensure the normal is normalized
+        hit.normal = edge1.cross(edge2).normalise();
         hit.material = material;
+
+        // Compute the third barycentric coordinate
+        float w = 1.0f - u - v;
+
+        // Interpolate UV coordinates using barycentric coordinates
+        float texU = w * uv0.x + u * uv1.x + v * uv2.x;
+        float texV = w * uv0.y + u * uv1.y + v * uv2.y;
+
+        // Store UV coordinates in the Intersection
+        hit.u = u;
+        hit.v = v;
 
         return true;
     }
     else
-    { // This means that there is a line intersection but not a ray intersection
+    { // Line intersection but not a ray intersection
         return false;
     }
 }
