@@ -1,4 +1,3 @@
-// Raytracer.h
 #ifndef RAYTRACER_H
 #define RAYTRACER_H
 

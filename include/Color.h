@@ -1,4 +1,3 @@
-// include/Color.h
 #ifndef COLOR_H
 #define COLOR_H
 
@@ -44,6 +43,12 @@ struct Color
             std::max(minVal, std::min(r, maxVal)),
             std::max(minVal, std::min(g, maxVal)),
             std::max(minVal, std::min(b, maxVal)));
+    }
+
+    // Tone mapping method
+    Color toneMap() const
+    {
+        return clamp(0.0f, 1.0f); // Ensures all color components are in the range [0, 1]
     }
 
     bool operator==(const Color &other) const

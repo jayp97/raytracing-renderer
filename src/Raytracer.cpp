@@ -1,4 +1,3 @@
-// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
@@ -31,13 +30,13 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             // Trace the ray and compute the color
             Color color = trace(ray, scene, shader, 0);
 
+            // Apply tone mapping
+            color = color.toneMap();
+
             if (isBinaryMode)
             {
                 // If binary mode, set color to white on intersection, else black
-                if (color != Color(0, 0, 0))
-                {
-                    color = Color(1, 1, 1);
-                }
+                color = (color != Color(0, 0, 0)) ? Color(1, 1, 1) : Color(0, 0, 0);
             }
 
             image.setPixel(x, y, color);
@@ -126,14 +125,12 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShade
             }
         }
 
-        // Clamp the accumulated color to [0, 1] range
-        accumulatedColor = accumulatedColor.clamp(0.0f, 1.0f);
-
-        return accumulatedColor;
+        // Return the tone-mapped color
+        return accumulatedColor.toneMap();
     }
     else
     {
-        // No intersection; return the scene's background color
-        return scene.backgroundColor;
+        // No intersection; return the scene's background color (tone-mapped)
+        return scene.backgroundColor.toneMap();
     }
 }
