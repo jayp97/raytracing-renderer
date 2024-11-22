@@ -1,6 +1,6 @@
 {
   "nbounces": 8,
-  "rendermode": "binary",
+  "rendermode": "phong",
   "camera": {
     "type": "pinhole",
     "width": 1200,
@@ -165,6 +165,32 @@
             "color1": [0.8, 0.5, 0.5],
             "color2": [0.4, 0.25, 0.25],
             "scale": 10.0
+          }
+        }
+      },
+      {
+        "type": "triangle",
+        "v0": [-0.8, 0.0, 1.2],
+        "v1": [0.8, 0.0, 1.2],
+        "v2": [0.0, 1.5, 1.2],
+        "uv0": [0.0, 0.0],
+        "uv1": [1.0, 0.0],
+        "uv2": [0.0, 1.0],
+        "material": {
+          "ks": 0.3,
+          "kd": 0.9,
+          "specularexponent": 2,
+          "diffusecolor": [0.8, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0,
+          "texture": {
+            "type": "checkerboard",
+            "color1": [0.8, 0.5, 0.8],
+            "color2": [0.2, 0.1, 0.2],
+            "scale": 5.0
           }
         }
       }
