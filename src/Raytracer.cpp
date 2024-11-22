@@ -1,3 +1,4 @@
+// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
@@ -26,9 +27,10 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     // Start timing
     auto startTime = std::chrono::steady_clock::now();
 
-    // Retrieve exposure from camera and calculate exposure scale
+    // Retrieve exposure from camera and calculate exposure scale with baseEV offset
     float exposure = camera.exposure;
-    float exposureScale = std::pow(2.0f, exposure); // Using EV scale
+    float baseEV = 1.2f;                                     // Exposure offset to ensure sufficient brightness
+    float exposureScale = std::pow(2.0f, exposure + baseEV); // Adjusted scaling
 
     // Iterate over each pixel with OpenMP parallelization
 #pragma omp parallel for schedule(dynamic) shared(image)
@@ -48,11 +50,10 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             }
             else
             {
-                // Apply linear exposure adjustment
+                // Apply exposure adjustment using the adjusted exposure scale
                 color *= exposureScale;
 
-                // Apply linear tone mapping: simple scaling and clamping
-                // Prevents colors from exceeding the displayable range
+                // Apply simple linear tone mapping: clamp to [0, 1]
                 color = color.clamp(0.0f, 1.0f);
 
                 // Optionally, apply gamma correction for display purposes
