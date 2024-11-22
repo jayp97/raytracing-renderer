@@ -18,6 +18,14 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         diffuseColor = hit.material.texture->getColor(hit.u, hit.v);
     }
 
+    Vector3 viewDir = (cameraPosition - hit.point).normalise();
+    Vector3 normal = hit.normal.normalise();
+
+    // Compute ambient component once
+    Color ambient = diffuseColor * hit.material.kd; // Or use hit.material.ambient if set
+
+    finalColor += ambient; // Add ambient component to final color
+
     for (const auto &light : scene.lights)
     {
         Vector3 lightDir = (light.getPosition() - hit.point).normalise();
@@ -25,16 +33,11 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
 
         if (isInShadow(hit.point, lightDir, lightDistance))
         {
-            finalColor += hit.material.ambient;
+            // Skip diffuse and specular contributions from this light
             continue;
         }
 
-        Vector3 viewDir = (cameraPosition - hit.point).normalise();
         Vector3 halfDir = (lightDir + viewDir).normalise();
-        Vector3 normal = hit.normal.normalise();
-
-        // Recalculate ambient color using texture
-        Color ambient = diffuseColor * hit.material.kd;
 
         float diff = std::max(normal.dot(lightDir), 0.0f);
         Color diffuse = diffuseColor * hit.material.kd * diff * light.getIntensity();
@@ -43,7 +46,7 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         float spec = std::pow(specAngle, hit.material.specularExponent);
         Color specular = hit.material.specularColor * hit.material.ks * spec * light.getIntensity();
 
-        finalColor += ambient + diffuse + specular;
+        finalColor += diffuse + specular;
     }
 
     return finalColor.clamp(0.0f, 1.0f);
