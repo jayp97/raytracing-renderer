@@ -90,39 +90,7 @@ bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
             auto obj = loadObject(shape);
             if (obj)
             {
-                // Automatically align cylinder axis to Y-axis if not already
-                auto cylinder = std::dynamic_pointer_cast<Cylinder>(obj);
-                if (cylinder)
-                {
-                    Vector3 axis = cylinder->getAxis();
-                    // Check if axis is not approximately along Y-axis
-                    if (std::fabs(axis.x) > 1e-3f || std::fabs(axis.z) > 1e-3f)
-                    {
-                        // Align axis to Y-axis
-                        Vector3 newAxis = alignToYAxis(axis);
-                        // Adjust height if necessary (here we assume height remains same)
-                        float originalHeight = cylinder->getHeight();
-                        float adjustedHeight = originalHeight; // Modify if needed based on rotation
-
-                        // Create a new cylinder with the new axis and adjusted height
-                        std::shared_ptr<Cylinder> adjustedCylinder = std::make_shared<Cylinder>(
-                            cylinder->getCenter(),  // Use getter
-                            newAxis,                // New axis aligned to Y-axis
-                            cylinder->getRadius(),  // Use getter
-                            adjustedHeight,         // Adjusted height
-                            cylinder->getMaterial() // Use getter
-                        );
-
-                        // Replace the last object in the scene with the adjusted cylinder
-                        scene.objects.pop_back();
-                        scene.addObject(adjustedCylinder);
-
-                        // Debugging statement
-                        std::cout << "Adjusted Cylinder Axis to Y-axis.\n";
-
-                        continue;
-                    }
-                }
+                // Removed the automatic axis alignment for cylinders
                 scene.addObject(obj);
             }
         }

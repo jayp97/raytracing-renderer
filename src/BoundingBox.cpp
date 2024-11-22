@@ -26,7 +26,7 @@ bool BoundingBox::intersect(const Ray &ray, float t_min, float t_max) const
             std::swap(t0, t1);
         t_min = t0 > t_min ? t0 : t_min;
         t_max = t1 < t_max ? t1 : t_max;
-        // Change from t_max <= t_min to t_max < t_min to allow t_max == t_min as a valid intersection
+        // Changed condition to allow t_max == t_min
         if (t_max < t_min)
             return false;
     }
