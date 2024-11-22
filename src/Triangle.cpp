@@ -67,5 +67,10 @@ BoundingBox Triangle::getBoundingBox() const
         std::max({v0.y, v1.y, v2.y}),
         std::max({v0.z, v1.z, v2.z}));
 
+    // Add a small epsilon to ensure the bounding box has non-zero thickness
+    const float epsilon = 1e-4f;
+    minPoint = minPoint - Vector3(epsilon, epsilon, epsilon);
+    maxPoint = maxPoint + Vector3(epsilon, epsilon, epsilon);
+
     return BoundingBox(minPoint, maxPoint);
 }
