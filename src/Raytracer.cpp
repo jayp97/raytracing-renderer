@@ -46,8 +46,8 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             }
             else
             {
-                // Apply tone mapping with exposure
-                color = color.toneMap(exposure);
+                // Apply tone mapping with inverse exposure
+                color = color.toneMap(1.0f / exposure);
 
                 // Clamp color between 0 and 1
                 color = color.clamp(0.0f, 1.0f);

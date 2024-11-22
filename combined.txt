@@ -841,7 +841,6 @@ std::ostream &operator<<(std::ostream &os, const Vector3 &v)
     return os;
 }
 
-// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
@@ -872,7 +871,7 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     // Retrieve exposure from camera
     float exposure = camera.exposure;
 
-// Iterate over each pixel with OpenMP parallelization
+    // Iterate over each pixel with OpenMP parallelization
 #pragma omp parallel for schedule(dynamic) shared(image)
     for (int y = 0; y < height; ++y)
     {
@@ -883,23 +882,25 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             // Trace the ray and compute the color
             Color color = trace(ray, scene, shader, 0);
 
-            // Apply exposure once
-            color = color * exposure;
-
-            // Apply tone mapping
-            color = color.toneMap();
-
             if (isBinaryMode)
             {
                 // Set color to red on intersection, else to background color
                 color = (color != scene.backgroundColor) ? Color(1, 0, 0) : scene.backgroundColor;
+            }
+            else
+            {
+                // Apply tone mapping with exposure
+                color = color.toneMap(exposure);
+
+                // Clamp color between 0 and 1
+                color = color.clamp(0.0f, 1.0f);
             }
 
             // Set the pixel color (assumes thread-safe)
             image.setPixel(x, y, color);
         }
 
-// Calculate and display progress every 100 lines or on the last line
+        // Calculate and display progress every 100 lines or on the last line
 #pragma omp critical
         {
             if (y % 100 == 0 || y == height - 1)
@@ -1064,6 +1065,21 @@ Vector3 Ray::at(float t) const
 {
     return origin + direction * t;
 };
+#include "Color.h"
+#include <cmath>
+
+Color Color::toneMap(float exposure) const
+{
+    // Apply exposure
+    Color exposed = (*this) * exposure;
+
+    // Apply Reinhard tone mapping
+    return Color(
+        exposed.r / (exposed.r + 1.0f),
+        exposed.g / (exposed.g + 1.0f),
+        exposed.b / (exposed.b + 1.0f));
+}
+
 // CheckerboardTexture.cpp
 #include "CheckerboardTexture.h"
 #include <cmath>
@@ -1082,7 +1098,6 @@ Color CheckerboardTexture::getColor(float u, float v) const
     }
 }
 
-// BlinnPhongShader.cpp
 #include "BlinnPhongShader.h"
 #include "Ray.h"
 #include <algorithm>
@@ -1133,7 +1148,8 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         finalColor += diffuse + specular;
     }
 
-    return finalColor.clamp(0.0f, 1.0f);
+    // Do not clamp here; allow high dynamic range values
+    return finalColor;
 }
 
 bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir, float lightDistance) const
@@ -1141,15 +1157,13 @@ bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir,
     const float shadowBias = 1e-4f; // Reduced shadow bias for sharper shadows
     Ray shadowRay(point + lightDir * shadowBias, lightDir);
 
-    for (const auto &object : scene.objects)
+    // Check for intersection with BVH
+    Intersection shadowHit;
+    if (scene.intersect(shadowRay, shadowHit))
     {
-        Intersection shadowHit;
-        if (object->intersect(shadowRay, shadowHit))
+        if (shadowHit.distance < lightDistance)
         {
-            if (shadowHit.distance < lightDistance)
-            {
-                return true; // Point is in shadow
-            }
+            return true; // Point is in shadow
         }
     }
 
@@ -1875,11 +1889,8 @@ struct Color
             std::max(minVal, std::min(b, maxVal)));
     }
 
-    // Tone mapping method
-    Color toneMap() const
-    {
-        return clamp(0.0f, 1.0f); // Ensures all color components are in the range [0, 1]
-    }
+    // Tone mapping method with exposure
+    Color toneMap(float exposure) const;
 
     bool operator==(const Color &other) const
     {
