@@ -913,7 +913,7 @@ std::ostream &operator<<(std::ostream &os, const Vector3 &v)
 #include <iostream>
 #include <algorithm>
 #include <omp.h>
-#include <chrono> // Include for timing
+#include <chrono>
 
 Raytracer::Raytracer(int width, int height) : image(width, height)
 {
@@ -951,13 +951,19 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
 
             if (isBinaryMode)
             {
-                // Set color to red on intersection, else to background color
-                color = (color != scene.backgroundColor) ? Color(1, 0, 0) : scene.backgroundColor;
+                // In binary mode, trace already returns red or background
+                // So no need to modify color here
             }
             else
             {
-                // Apply tone mapping with inverse exposure
-                color = color.toneMap(1.0f / exposure);
+                // Apply exposure
+                color *= exposure;
+
+                // Apply tone mapping
+                color = color.toneMap();
+
+                // Optionally apply gamma correction
+                // color = color.gammaCorrect(2.2f);
 
                 // Clamp color between 0 and 1
                 color = color.clamp(0.0f, 1.0f);
@@ -995,6 +1001,26 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
 
 Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth) const
 {
+    // Check if the render mode is "binary"
+    bool isBinaryMode = scene.renderMode == "binary";
+
+    if (isBinaryMode)
+    {
+        Intersection hit;
+        bool hasHit = scene.intersect(ray, hit);
+        if (hasHit)
+        {
+            // Return fixed color (e.g., red) for any intersection
+            return Color(1.0f, 0.0f, 0.0f);
+        }
+        else
+        {
+            // Return background color if no intersection
+            return scene.backgroundColor;
+        }
+    }
+
+    // Existing trace logic for non-binary modes
     if (depth >= scene.nbounces)
         return Color(0, 0, 0); // Base case: no further contribution
 
@@ -1072,11 +1098,6 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShade
     }
 }
 
-Color Raytracer::getPixelColor(int x, int y) const
-{
-    return image.getPixel(x, y);
-}
-
 #include "Camera.h"
 #include <cmath>
 #include <iostream>
@@ -1116,9 +1137,7 @@ Ray Camera::generateRay(float pixelX, float pixelY) const
 }
 
 #include "Light.h"
-#include "Color.h"
 
-// Constructor implementation
 Light::Light(const Vector3 &position, const Color &intensity)
     : position(position), intensity(intensity) {}
 
@@ -1133,19 +1152,8 @@ Vector3 Ray::at(float t) const
     return origin + direction * t;
 };
 #include "Color.h"
-#include <cmath>
 
-Color Color::toneMap(float exposure) const
-{
-    // Apply exposure
-    Color exposed = (*this) * exposure;
-
-    // Apply Reinhard tone mapping
-    return Color(
-        exposed.r / (exposed.r + 1.0f),
-        exposed.g / (exposed.g + 1.0f),
-        exposed.b / (exposed.b + 1.0f));
-}
+// All methods are defined inline in Color.h for efficiency.
 
 // CheckerboardTexture.cpp
 #include "CheckerboardTexture.h"
@@ -1187,8 +1195,8 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
     Vector3 viewDir = (cameraPosition - hit.point).normalise();
     Vector3 normal = hit.normal.normalise();
 
-    // Use precomputed ambient component from material
-    Color ambient = hit.material.ambient;
+    // Ambient component with a fixed intensity
+    Color ambient = diffuseColor * hit.material.kd * 0.1f; // Ambient intensity is 0.1
 
     finalColor += ambient; // Add ambient component to final color
 
@@ -1203,16 +1211,24 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
             continue;
         }
 
-        Vector3 halfDir = (lightDir + viewDir).normalise();
-
+        // Diffuse shading
         float diff = std::max(normal.dot(lightDir), 0.0f);
-        Color diffuse = diffuseColor * hit.material.kd * diff * light.getIntensity();
+        Color diffuse = diffuseColor * hit.material.kd * diff;
 
+        // Specular shading using Blinn-Phong model
+        Vector3 halfDir = (lightDir + viewDir).normalise();
         float specAngle = std::max(normal.dot(halfDir), 0.0f);
         float spec = std::pow(specAngle, hit.material.specularExponent);
-        Color specular = hit.material.specularColor * hit.material.ks * spec * light.getIntensity();
+        Color specular = hit.material.specularColor * hit.material.ks * spec;
 
-        finalColor += diffuse + specular;
+        // Attenuate based on light distance (optional)
+        float attenuation = 1.0f / (lightDistance * lightDistance);
+
+        // Multiply by light intensity
+        Color lightIntensity = light.getIntensity();
+
+        // Add contributions from this light
+        finalColor += (diffuse + specular) * lightIntensity * attenuation;
     }
 
     // Do not clamp here; allow high dynamic range values
@@ -1221,7 +1237,7 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
 
 bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir, float lightDistance) const
 {
-    const float shadowBias = 1e-4f; // Reduced shadow bias for sharper shadows
+    const float shadowBias = 1e-4f; // Small bias to prevent self-shadowing
     Ray shadowRay(point + lightDir * shadowBias, lightDir);
 
     // Check for intersection with BVH
@@ -1920,9 +1936,9 @@ public:
 #ifndef COLOR_H
 #define COLOR_H
 
-#include <algorithm> // For std::min and std::max
+#include <algorithm>
 #include <iostream>
-#include <cmath> // For std::fabs
+#include <cmath>
 
 struct Color
 {
@@ -1932,61 +1948,83 @@ struct Color
     Color() : r(0.0f), g(0.0f), b(0.0f) {}
     Color(float red, float green, float blue) : r(red), g(green), b(blue) {}
 
-    // Operator Overloads
-    Color operator+(const Color &other) const
-    {
-        return Color(r + other.r, g + other.g, b + other.b);
-    }
+    // Operator overloads
+    Color operator+(const Color &other) const;
+    Color &operator+=(const Color &other);
+    Color operator*(float scalar) const;
+    Color &operator*=(float scalar);
+    Color operator*(const Color &other) const;
 
-    Color &operator+=(const Color &other)
-    {
-        r += other.r;
-        g += other.g;
-        b += other.b;
-        return *this;
-    }
+    // Clamp method
+    Color clamp(float minVal, float maxVal) const;
 
-    Color operator*(float scalar) const
-    {
-        return Color(r * scalar, g * scalar, b * scalar);
-    }
+    // Tone mapping using Reinhard operator
+    Color toneMap() const;
 
-    Color operator*(const Color &other) const // Element-wise multiplication
-    {
-        return Color(r * other.r, g * other.g, b * other.b);
-    }
-
-    Color clamp(float minVal, float maxVal) const
-    {
-        return Color(
-            std::max(minVal, std::min(r, maxVal)),
-            std::max(minVal, std::min(g, maxVal)),
-            std::max(minVal, std::min(b, maxVal)));
-    }
-
-    // Tone mapping method with exposure
-    Color toneMap(float exposure) const;
-
-    bool operator==(const Color &other) const
-    {
-        const float tolerance = 1e-5f;
-        return (std::fabs(r - other.r) < tolerance) &&
-               (std::fabs(g - other.g) < tolerance) &&
-               (std::fabs(b - other.b) < tolerance);
-    }
-
-    bool operator!=(const Color &other) const
-    {
-        return !(*this == other);
-    }
-
-    // Stream insertion operator for printing
-    friend std::ostream &operator<<(std::ostream &os, const Color &c)
-    {
-        os << "Color(" << c.r << ", " << c.g << ", " << c.b << ")";
-        return os;
-    }
+    // Gamma correction
+    Color gammaCorrect(float gamma) const;
 };
+
+// Addition
+inline Color Color::operator+(const Color &other) const
+{
+    return Color(r + other.r, g + other.g, b + other.b);
+}
+
+inline Color &Color::operator+=(const Color &other)
+{
+    r += other.r;
+    g += other.g;
+    b += other.b;
+    return *this;
+}
+
+// Scalar multiplication
+inline Color Color::operator*(float scalar) const
+{
+    return Color(r * scalar, g * scalar, b * scalar);
+}
+
+inline Color &Color::operator*=(float scalar)
+{
+    r *= scalar;
+    g *= scalar;
+    b *= scalar;
+    return *this;
+}
+
+// Element-wise multiplication
+inline Color Color::operator*(const Color &other) const
+{
+    return Color(r * other.r, g * other.g, b * other.b);
+}
+
+// Clamp color components between min and max
+inline Color Color::clamp(float minVal, float maxVal) const
+{
+    return Color(
+        std::max(minVal, std::min(r, maxVal)),
+        std::max(minVal, std::min(g, maxVal)),
+        std::max(minVal, std::min(b, maxVal)));
+}
+
+// Tone mapping using Reinhard operator
+inline Color Color::toneMap() const
+{
+    return Color(
+        r / (r + 1.0f),
+        g / (g + 1.0f),
+        b / (b + 1.0f));
+}
+
+// Gamma correction
+inline Color Color::gammaCorrect(float gamma) const
+{
+    return Color(
+        std::pow(r, 1.0f / gamma),
+        std::pow(g, 1.0f / gamma),
+        std::pow(b, 1.0f / gamma));
+}
 
 #endif // COLOR_H
 

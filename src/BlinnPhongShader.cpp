@@ -1,3 +1,4 @@
+// BlinnPhongShader.cpp
 #include "BlinnPhongShader.h"
 #include "Ray.h"
 #include <algorithm>
@@ -20,8 +21,8 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
     Vector3 viewDir = (cameraPosition - hit.point).normalise();
     Vector3 normal = hit.normal.normalise();
 
-    // Use precomputed ambient component from material
-    Color ambient = hit.material.ambient;
+    // Ambient component with a fixed intensity
+    Color ambient = diffuseColor * hit.material.kd * 0.1f; // Ambient intensity is 0.1
 
     finalColor += ambient; // Add ambient component to final color
 
@@ -36,16 +37,25 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
             continue;
         }
 
-        Vector3 halfDir = (lightDir + viewDir).normalise();
-
+        // Diffuse shading
         float diff = std::max(normal.dot(lightDir), 0.0f);
-        Color diffuse = diffuseColor * hit.material.kd * diff * light.getIntensity();
+        Color diffuse = diffuseColor * hit.material.kd * diff;
 
+        // Specular shading using Blinn-Phong model
+        Vector3 halfDir = (lightDir + viewDir).normalise();
         float specAngle = std::max(normal.dot(halfDir), 0.0f);
         float spec = std::pow(specAngle, hit.material.specularExponent);
-        Color specular = hit.material.specularColor * hit.material.ks * spec * light.getIntensity();
+        Color specular = hit.material.specularColor * hit.material.ks * spec;
 
-        finalColor += diffuse + specular;
+        // Adjusted attenuation to prevent excessive darkening
+        // Using a linear + quadratic attenuation model
+        float attenuation = 1.0f / (1.0f + 0.7f * lightDistance + 1.8f * lightDistance * lightDistance);
+
+        // Multiply by light intensity
+        Color lightIntensity = light.getIntensity();
+
+        // Add contributions from this light
+        finalColor += (diffuse + specular) * lightIntensity * attenuation;
     }
 
     // Do not clamp here; allow high dynamic range values
@@ -54,7 +64,7 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
 
 bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir, float lightDistance) const
 {
-    const float shadowBias = 1e-4f; // Reduced shadow bias for sharper shadows
+    const float shadowBias = 1e-4f; // Small bias to prevent self-shadowing
     Ray shadowRay(point + lightDir * shadowBias, lightDir);
 
     // Check for intersection with BVH

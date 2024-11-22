@@ -1,9 +1,11 @@
+// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
 #include <algorithm>
 #include <omp.h>
-#include <chrono> // Include for timing
+#include <chrono>
+#include <cmath> // Include for std::pow
 
 Raytracer::Raytracer(int width, int height) : image(width, height)
 {
@@ -46,8 +48,18 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             }
             else
             {
-                // Apply tone mapping with inverse exposure
-                color = color.toneMap(1.0f / exposure);
+                // Apply exposure adjustment using exposure value as EV (Exposure Value)
+                // Using pow(2.0f, exposure) to scale brightness appropriately
+                color *= std::pow(2.0f, exposure);
+
+                // Apply filmic tone mapping
+                color = color.toneMap();
+
+                // Optionally adjust saturation (set to 1.2 for increased saturation)
+                color = color.adjustSaturation(1.2f); // Increase saturation by 20%
+
+                // Apply gamma correction
+                color = color.gammaCorrect(2.2f);
 
                 // Clamp color between 0 and 1
                 color = color.clamp(0.0f, 1.0f);
