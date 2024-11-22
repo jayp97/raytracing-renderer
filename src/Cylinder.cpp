@@ -40,7 +40,9 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
             if (tTemp > 1e-4f) // Avoid self-intersection
             {
                 Vector3 point = ray.origin + ray.direction * tTemp;
-                if (point.y >= center.y && point.y <= center.y + height)
+                // Treat 'height' as half-height to double the actual height
+                float halfHeight = height;
+                if (point.y >= center.y - halfHeight && point.y <= center.y + halfHeight)
                 {
                     if (tTemp < tSide)
                     {
@@ -70,8 +72,8 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
         if (theta < 0.0f)
             theta += 2.0f * M_PI;
 
-        float u = theta / (2.0f * M_PI);                   // Range [0,1]
-        float v_coord = (hit.point.y - center.y) / height; // Range [0,1] along the height
+        float u = theta / (2.0f * M_PI);                                       // Range [0,1]
+        float v_coord = (hit.point.y - (center.y - height)) / (2.0f * height); // Adjusted for doubled height
 
         hit.u = u;
         hit.v = v_coord;
@@ -83,8 +85,10 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
     }
 
     // Check for intersection with the top and bottom caps
+    float halfHeight = height; // Treat 'height' as half-height to double the actual height
+
     // Top cap
-    float tTop = (center.y + height - ray.origin.y) / ray.direction.y;
+    float tTop = (center.y + halfHeight - ray.origin.y) / ray.direction.y;
     if (tTop > 1e-4f && tTop < tFinal)
     {
         Vector3 pTop = ray.origin + ray.direction * tTop;
@@ -111,7 +115,7 @@ bool Cylinder::intersect(const Ray &ray, Intersection &hit) const
     }
 
     // Bottom cap
-    float tBottom = (center.y - ray.origin.y) / ray.direction.y;
+    float tBottom = (center.y - halfHeight - ray.origin.y) / ray.direction.y;
     if (tBottom > 1e-4f && tBottom < tFinal)
     {
         Vector3 pBottom = ray.origin + ray.direction * tBottom;
@@ -151,7 +155,8 @@ Vector3 Cylinder::getNormal(const Vector3 &point) const
 // Get the bounding box of the cylinder
 BoundingBox Cylinder::getBoundingBox() const
 {
-    Vector3 minPoint(center.x - radius, center.y, center.z - radius);
-    Vector3 maxPoint(center.x + radius, center.y + height, center.z + radius);
+    float halfHeight = height; // Treat 'height' as half-height to double the actual height
+    Vector3 minPoint(center.x - radius, center.y - halfHeight, center.z - radius);
+    Vector3 maxPoint(center.x + radius, center.y + halfHeight, center.z + radius);
     return BoundingBox(minPoint, maxPoint);
 }

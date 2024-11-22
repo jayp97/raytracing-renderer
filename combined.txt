@@ -889,8 +889,8 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             }
             else
             {
-                // Apply tone mapping with exposure
-                color = color.toneMap(exposure);
+                // Apply tone mapping with inverse exposure
+                color = color.toneMap(1.0f / exposure);
 
                 // Clamp color between 0 and 1
                 color = color.clamp(0.0f, 1.0f);
@@ -2327,7 +2327,7 @@ scene.json
     "lookAt": [0.0, 0.35, 1.0],
     "upVector": [0.0, 1.0, 0.0],
     "fov": 45.0,
-    "exposure": 0.1
+    "exposure": 1.5
   },
   "scene": {
     "backgroundcolor": [0.25, 0.25, 0.25],
