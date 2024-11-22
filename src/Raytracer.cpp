@@ -41,8 +41,8 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
 
             if (isBinaryMode)
             {
-                // Set color to red on intersection, else to background color
-                color = (color != scene.backgroundColor) ? Color(1, 0, 0) : scene.backgroundColor;
+                // In binary mode, trace already returns red or background
+                // So no need to modify color here
             }
             else
             {
@@ -85,6 +85,26 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
 
 Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth) const
 {
+    // Check if the render mode is "binary"
+    bool isBinaryMode = scene.renderMode == "binary";
+
+    if (isBinaryMode)
+    {
+        Intersection hit;
+        bool hasHit = scene.intersect(ray, hit);
+        if (hasHit)
+        {
+            // Return fixed color (e.g., red) for any intersection
+            return Color(1.0f, 0.0f, 0.0f);
+        }
+        else
+        {
+            // Return background color if no intersection
+            return scene.backgroundColor;
+        }
+    }
+
+    // Existing trace logic for non-binary modes
     if (depth >= scene.nbounces)
         return Color(0, 0, 0); // Base case: no further contribution
 
