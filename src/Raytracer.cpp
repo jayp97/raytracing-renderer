@@ -1,4 +1,3 @@
-// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
@@ -29,7 +28,7 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     // Retrieve exposure from camera
     float exposure = camera.exposure;
 
-// Iterate over each pixel with OpenMP parallelization
+    // Iterate over each pixel with OpenMP parallelization
 #pragma omp parallel for schedule(dynamic) shared(image)
     for (int y = 0; y < height; ++y)
     {
@@ -40,23 +39,25 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             // Trace the ray and compute the color
             Color color = trace(ray, scene, shader, 0);
 
-            // Apply exposure once
-            color = color * exposure;
-
-            // Apply tone mapping
-            color = color.toneMap();
-
             if (isBinaryMode)
             {
                 // Set color to red on intersection, else to background color
                 color = (color != scene.backgroundColor) ? Color(1, 0, 0) : scene.backgroundColor;
+            }
+            else
+            {
+                // Apply tone mapping with exposure
+                color = color.toneMap(exposure);
+
+                // Clamp color between 0 and 1
+                color = color.clamp(0.0f, 1.0f);
             }
 
             // Set the pixel color (assumes thread-safe)
             image.setPixel(x, y, color);
         }
 
-// Calculate and display progress every 100 lines or on the last line
+        // Calculate and display progress every 100 lines or on the last line
 #pragma omp critical
         {
             if (y % 100 == 0 || y == height - 1)

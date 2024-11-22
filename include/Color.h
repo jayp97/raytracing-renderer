@@ -45,11 +45,8 @@ struct Color
             std::max(minVal, std::min(b, maxVal)));
     }
 
-    // Tone mapping method
-    Color toneMap() const
-    {
-        return clamp(0.0f, 1.0f); // Ensures all color components are in the range [0, 1]
-    }
+    // Tone mapping method with exposure
+    Color toneMap(float exposure) const;
 
     bool operator==(const Color &other) const
     {

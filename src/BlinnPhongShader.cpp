@@ -1,4 +1,3 @@
-// BlinnPhongShader.cpp
 #include "BlinnPhongShader.h"
 #include "Ray.h"
 #include <algorithm>
@@ -49,7 +48,8 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         finalColor += diffuse + specular;
     }
 
-    return finalColor.clamp(0.0f, 1.0f);
+    // Do not clamp here; allow high dynamic range values
+    return finalColor;
 }
 
 bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir, float lightDistance) const
@@ -57,15 +57,13 @@ bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir,
     const float shadowBias = 1e-4f; // Reduced shadow bias for sharper shadows
     Ray shadowRay(point + lightDir * shadowBias, lightDir);
 
-    for (const auto &object : scene.objects)
+    // Check for intersection with BVH
+    Intersection shadowHit;
+    if (scene.intersect(shadowRay, shadowHit))
     {
-        Intersection shadowHit;
-        if (object->intersect(shadowRay, shadowHit))
+        if (shadowHit.distance < lightDistance)
         {
-            if (shadowHit.distance < lightDistance)
-            {
-                return true; // Point is in shadow
-            }
+            return true; // Point is in shadow
         }
     }
 
