@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <stdexcept>
 
 class Vector3
 {
@@ -26,7 +27,7 @@ public:
     Vector3 &operator*=(float scalar);
     Vector3 &operator/=(float scalar);
 
-    // operator for element-wise multiplication
+    // Operator for element-wise multiplication
     Vector3 operator*(const Vector3 &other) const;
 
     // Unary Minus Operator

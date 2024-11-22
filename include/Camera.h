@@ -16,7 +16,7 @@ public:
           right(1.0f, 0.0f, 0.0f),
           fov(45.0f),
           aspectRatio(1.0f),
-          exposure(0.1f),
+          exposure(1.0f),
           width(800),
           height(600)
     {

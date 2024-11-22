@@ -2,45 +2,28 @@
 #include "Scene.h"
 #include "BVHNode.h"
 #include <limits>
+#include <iostream>
 
-// Build the BVH tree
 void Scene::buildBVH()
 {
-    if (!objects.empty())
-    {
-        bvhRoot = std::make_shared<BVHNode>(objects, 0, objects.size());
-    }
-    else
+    if (objects.empty())
     {
         bvhRoot = nullptr;
+        return;
     }
+
+    bvhRoot = std::make_shared<BVHNode>(objects, 0, objects.size());
 }
 
-// Intersection method using BVH traversal
 bool Scene::intersect(const Ray &ray, Intersection &closestHit) const
 {
-    closestHit.distance = std::numeric_limits<float>::max();
+    if (!bvhRoot)
+        return false;
 
-    if (bvhRoot)
-    {
-        return bvhRoot->intersect(ray, closestHit);
-    }
-    else
-    {
-        // Fallback to brute-force if BVH is not built
-        bool hitAnything = false;
-        for (const auto &object : objects)
-        {
-            Intersection tempHit;
-            if (object->intersect(ray, tempHit))
-            {
-                if (tempHit.distance < closestHit.distance)
-                {
-                    closestHit = tempHit;
-                    hitAnything = true;
-                }
-            }
-        }
-        return hitAnything;
-    }
+    // Initialize closestHit.distance to infinity
+    closestHit.distance = std::numeric_limits<float>::infinity();
+
+    bool hit = bvhRoot->intersect(ray, closestHit);
+
+    return hit;
 }

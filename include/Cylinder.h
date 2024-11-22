@@ -23,6 +23,7 @@ public:
     const Vector3 &getAxis() const { return axis; }
     float getRadius() const { return radius; }
     float getHeight() const { return height; }
+    const Material &getMaterial() const { return material; } // Newly added getter
 
     // Get the bounding box of the cylinder
     BoundingBox getBoundingBox() const override;

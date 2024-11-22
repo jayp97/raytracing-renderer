@@ -21,8 +21,8 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
     Vector3 viewDir = (cameraPosition - hit.point).normalise();
     Vector3 normal = hit.normal.normalise();
 
-    // Compute ambient component once
-    Color ambient = diffuseColor * hit.material.kd; // Or use hit.material.ambient if set
+    // Use precomputed ambient component from material
+    Color ambient = hit.material.ambient;
 
     finalColor += ambient; // Add ambient component to final color
 
@@ -54,7 +54,7 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
 
 bool BlinnPhongShader::isInShadow(const Vector3 &point, const Vector3 &lightDir, float lightDistance) const
 {
-    const float shadowBias = 1e-3f;
+    const float shadowBias = 1e-4f; // Reduced shadow bias for sharper shadows
     Ray shadowRay(point + lightDir * shadowBias, lightDir);
 
     for (const auto &object : scene.objects)

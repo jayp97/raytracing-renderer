@@ -1,3 +1,4 @@
+// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
@@ -25,6 +26,9 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     // Start timing
     auto startTime = std::chrono::steady_clock::now();
 
+    // Retrieve exposure from camera
+    float exposure = camera.exposure;
+
 // Iterate over each pixel with OpenMP parallelization
 #pragma omp parallel for schedule(dynamic) shared(image)
     for (int y = 0; y < height; ++y)
@@ -36,12 +40,15 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             // Trace the ray and compute the color
             Color color = trace(ray, scene, shader, 0);
 
+            // Apply exposure once
+            color = color * exposure;
+
             // Apply tone mapping
             color = color.toneMap();
 
             if (isBinaryMode)
             {
-                // Set color to red on intersection, else to black
+                // Set color to red on intersection, else to background color
                 color = (color != scene.backgroundColor) ? Color(1, 0, 0) : scene.backgroundColor;
             }
 
@@ -144,13 +151,13 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShade
             }
         }
 
-        // Return the tone-mapped color
-        return accumulatedColor.toneMap();
+        // Return the accumulated color without tone mapping
+        return accumulatedColor;
     }
     else
     {
-        // No intersection; return the scene's background color (tone-mapped)
-        return scene.backgroundColor.toneMap();
+        // No intersection; return the scene's background color without tone mapping
+        return scene.backgroundColor;
     }
 }
 

@@ -18,13 +18,18 @@ public:
     // Intersection method that fills in the Intersection data if there's an intersection
     bool intersect(const Ray &ray, Intersection &hit) const override;
 
-    // Attributes
-    Vector3 center;    // Center of Sphere
-    float radius;      // Radius of Sphere
-    Material material; // Material of Sphere
+    // Getters
+    const Vector3 &getCenter() const { return center; }
+    float getRadius() const { return radius; }
+    const Material &getMaterial() const { return material; }
 
     // Get the bounding box of the sphere
     BoundingBox getBoundingBox() const override;
+
+private:
+    Vector3 center;    // Center of Sphere
+    float radius;      // Radius of Sphere
+    Material material; // Material of Sphere
 };
 
 #endif // SPHERE_H

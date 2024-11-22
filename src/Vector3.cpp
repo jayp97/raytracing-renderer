@@ -1,6 +1,7 @@
 // Vector3.cpp
 #include "Vector3.h"
-#include <cmath> // for std::fabs
+#include <cmath>     // for std::fabs, std::sqrt
+#include <algorithm> // for std::min, std::max
 
 // Addition
 Vector3 Vector3::operator+(const Vector3 &other) const
@@ -23,6 +24,9 @@ Vector3 Vector3::operator*(float scalar) const
 // Scalar division
 Vector3 Vector3::operator/(float scalar) const
 {
+    if (scalar == 0.0f)
+        throw std::runtime_error("Division by zero in Vector3::operator/");
+
     return Vector3(x / scalar, y / scalar, z / scalar);
 }
 
@@ -53,10 +57,19 @@ Vector3 &Vector3::operator*=(float scalar)
 
 Vector3 &Vector3::operator/=(float scalar)
 {
+    if (scalar == 0.0f)
+        throw std::runtime_error("Division by zero in Vector3::operator/=");
+
     x /= scalar;
     y /= scalar;
     z /= scalar;
     return *this;
+}
+
+// Element-wise multiplication
+Vector3 Vector3::operator*(const Vector3 &other) const
+{
+    return Vector3(x * other.x, y * other.y, z * other.z);
 }
 
 // Unary Minus Operator
@@ -125,13 +138,7 @@ bool Vector3::operator!=(const Vector3 &other) const
     return !(*this == other);
 }
 
-// Element-wise multiplication
-Vector3 Vector3::operator*(const Vector3 &other) const
-{
-    return Vector3(x * other.x, y * other.y, z * other.z);
-}
-
-// operator[] for non-const access
+// Element access - non-const
 float &Vector3::operator[](int index)
 {
     if (index == 0)
@@ -146,7 +153,7 @@ float &Vector3::operator[](int index)
     }
 }
 
-// operator[] for const access
+// Element access - const
 const float &Vector3::operator[](int index) const
 {
     if (index == 0)

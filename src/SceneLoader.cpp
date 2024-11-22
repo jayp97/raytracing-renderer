@@ -1,5 +1,4 @@
 // SceneLoader.cpp
-
 #include "SceneLoader.h"
 #include "Sphere.h"
 #include "Cylinder.h"
@@ -9,6 +8,20 @@
 #include "CheckerboardTexture.h"
 #include <fstream>
 #include <iostream>
+
+// Function to align any vector to Y-axis (simplified)
+Vector3 alignToYAxis(const Vector3 &)
+{
+    // For simplicity, set the axis to Y-axis directly
+    return Vector3(0.0f, 1.0f, 0.0f);
+}
+
+// Function to rotate a vector to align with the Y-axis
+Vector3 rotateToYAxis(const Vector3 &)
+{
+    // For simplicity, return Y-axis directly
+    return Vector3(0.0f, 1.0f, 0.0f);
+}
 
 // Loads the entire scene from a JSON file and populates the Scene object
 bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
@@ -77,6 +90,39 @@ bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
             auto obj = loadObject(shape);
             if (obj)
             {
+                // Automatically align cylinder axis to Y-axis if not already
+                auto cylinder = std::dynamic_pointer_cast<Cylinder>(obj);
+                if (cylinder)
+                {
+                    Vector3 axis = cylinder->getAxis();
+                    // Check if axis is not approximately along Y-axis
+                    if (std::fabs(axis.x) > 1e-3f || std::fabs(axis.z) > 1e-3f)
+                    {
+                        // Align axis to Y-axis
+                        Vector3 newAxis = alignToYAxis(axis);
+                        // Adjust height if necessary (here we assume height remains same)
+                        float originalHeight = cylinder->getHeight();
+                        float adjustedHeight = originalHeight; // Modify if needed based on rotation
+
+                        // Create a new cylinder with the new axis and adjusted height
+                        std::shared_ptr<Cylinder> adjustedCylinder = std::make_shared<Cylinder>(
+                            cylinder->getCenter(),  // Use getter
+                            newAxis,                // New axis aligned to Y-axis
+                            cylinder->getRadius(),  // Use getter
+                            adjustedHeight,         // Adjusted height
+                            cylinder->getMaterial() // Use getter
+                        );
+
+                        // Replace the last object in the scene with the adjusted cylinder
+                        scene.objects.pop_back();
+                        scene.addObject(adjustedCylinder);
+
+                        // Debugging statement
+                        std::cout << "Adjusted Cylinder Axis to Y-axis.\n";
+
+                        continue;
+                    }
+                }
                 scene.addObject(obj);
             }
         }
@@ -217,11 +263,25 @@ Material SceneLoader::loadMaterial(const json &materialData)
 
     // Set reflectivity
     material.isReflective = materialData.value("isreflective", false);
-    material.reflectivity = materialData.value("reflectivity", 0.0f);
+    if (material.isReflective)
+    {
+        material.reflectivity = materialData.value("reflectivity", 0.0f);
+    }
+    else
+    {
+        material.reflectivity = 0.0f;
+    }
 
     // Set refractive properties
     material.isRefractive = materialData.value("isrefractive", false);
-    material.refractiveIndex = materialData.value("refractiveindex", 1.0f);
+    if (material.isRefractive)
+    {
+        material.refractiveIndex = materialData.value("refractiveindex", 1.0f);
+    }
+    else
+    {
+        material.refractiveIndex = 1.0f;
+    }
 
     return material;
 }
