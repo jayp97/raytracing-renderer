@@ -1,4 +1,3 @@
-// BlinnPhongShader.cpp
 #include "BlinnPhongShader.h"
 #include "Ray.h"
 #include <algorithm>
@@ -47,9 +46,9 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         float spec = std::pow(specAngle, hit.material.specularExponent);
         Color specular = hit.material.specularColor * hit.material.ks * spec;
 
-        // Adjusted attenuation to prevent excessive darkening
-        // Using a linear + quadratic attenuation model
-        float attenuation = 1.0f / (1.0f + 0.7f * lightDistance + 1.8f * lightDistance * lightDistance);
+        // Linear attenuation to maintain realistic lighting
+        // Using a simple inverse square law with a slight bias to prevent extreme attenuation
+        float attenuation = 1.0f / (lightDistance * lightDistance + 1.0f);
 
         // Multiply by light intensity
         Color lightIntensity = light.getIntensity();
@@ -58,7 +57,7 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         finalColor += (diffuse + specular) * lightIntensity * attenuation;
     }
 
-    // Do not clamp here; allow high dynamic range values
+    // Do not clamp here; allow high dynamic range values for accurate linear processing
     return finalColor;
 }
 

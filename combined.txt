@@ -908,12 +908,14 @@ std::ostream &operator<<(std::ostream &os, const Vector3 &v)
     return os;
 }
 
+// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
 #include <algorithm>
 #include <omp.h>
 #include <chrono>
+#include <cmath> // Include for std::pow
 
 Raytracer::Raytracer(int width, int height) : image(width, height)
 {
@@ -956,14 +958,18 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             }
             else
             {
-                // Apply exposure
-                color *= exposure;
+                // Apply exposure adjustment using exposure value as EV (Exposure Value)
+                // Using pow(2.0f, exposure) to scale brightness appropriately
+                color *= std::pow(2.0f, exposure);
 
-                // Apply tone mapping
+                // Apply filmic tone mapping
                 color = color.toneMap();
 
-                // Optionally apply gamma correction
-                // color = color.gammaCorrect(2.2f);
+                // Optionally adjust saturation (set to 1.2 for increased saturation)
+                color = color.adjustSaturation(1.2f); // Increase saturation by 20%
+
+                // Apply gamma correction
+                color = color.gammaCorrect(2.2f);
 
                 // Clamp color between 0 and 1
                 color = color.clamp(0.0f, 1.0f);
@@ -1098,6 +1104,11 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShade
     }
 }
 
+Color Raytracer::getPixelColor(int x, int y) const
+{
+    return image.getPixel(x, y);
+}
+
 #include "Camera.h"
 #include <cmath>
 #include <iostream>
@@ -1161,6 +1172,10 @@ Vector3 Ray::at(float t) const
 
 Color CheckerboardTexture::getColor(float u, float v) const
 {
+    // Ensure u and v wrap around [0,1]
+    u = u - std::floor(u);
+    v = v - std::floor(v);
+
     int checkU = static_cast<int>(std::floor(u * scale)) % 2;
     int checkV = static_cast<int>(std::floor(v * scale)) % 2;
     if ((checkU + checkV) % 2 == 0)
@@ -1173,6 +1188,7 @@ Color CheckerboardTexture::getColor(float u, float v) const
     }
 }
 
+// BlinnPhongShader.cpp
 #include "BlinnPhongShader.h"
 #include "Ray.h"
 #include <algorithm>
@@ -1221,8 +1237,9 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         float spec = std::pow(specAngle, hit.material.specularExponent);
         Color specular = hit.material.specularColor * hit.material.ks * spec;
 
-        // Attenuate based on light distance (optional)
-        float attenuation = 1.0f / (lightDistance * lightDistance);
+        // Adjusted attenuation to prevent excessive darkening
+        // Using a linear + quadratic attenuation model
+        float attenuation = 1.0f / (1.0f + 0.7f * lightDistance + 1.8f * lightDistance * lightDistance);
 
         // Multiply by light intensity
         Color lightIntensity = light.getIntensity();
@@ -1933,6 +1950,7 @@ public:
 
 #endif // MATERIAL_H
 
+// Color.h
 #ifndef COLOR_H
 #define COLOR_H
 
@@ -1958,11 +1976,14 @@ struct Color
     // Clamp method
     Color clamp(float minVal, float maxVal) const;
 
-    // Tone mapping using Reinhard operator
+    // Tone mapping using Filmic operator
     Color toneMap() const;
 
     // Gamma correction
     Color gammaCorrect(float gamma) const;
+
+    // Adjust saturation
+    Color adjustSaturation(float saturation) const;
 };
 
 // Addition
@@ -2008,22 +2029,45 @@ inline Color Color::clamp(float minVal, float maxVal) const
         std::max(minVal, std::min(b, maxVal)));
 }
 
-// Tone mapping using Reinhard operator
+// Filmic tone mapping operator (Uncharted 2)
 inline Color Color::toneMap() const
 {
+    auto Uncharted2Tonemap = [](float x) -> float
+    {
+        const float A = 0.15f;
+        const float B = 0.50f;
+        const float C = 0.10f;
+        const float D = 0.20f;
+        const float E = 0.02f;
+        const float F = 0.30f;
+        return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
+    };
+
     return Color(
-        r / (r + 1.0f),
-        g / (g + 1.0f),
-        b / (b + 1.0f));
+        Uncharted2Tonemap(r),
+        Uncharted2Tonemap(g),
+        Uncharted2Tonemap(b));
 }
 
 // Gamma correction
 inline Color Color::gammaCorrect(float gamma) const
 {
+    float invGamma = 1.0f / gamma;
     return Color(
-        std::pow(r, 1.0f / gamma),
-        std::pow(g, 1.0f / gamma),
-        std::pow(b, 1.0f / gamma));
+        std::pow(std::max(r, 0.0f), invGamma),
+        std::pow(std::max(g, 0.0f), invGamma),
+        std::pow(std::max(b, 0.0f), invGamma));
+}
+
+// Adjust saturation
+inline Color Color::adjustSaturation(float saturation) const
+{
+    // Convert to grayscale using luminosity method
+    float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+    return Color(
+        gray + (r - gray) * saturation,
+        gray + (g - gray) * saturation,
+        gray + (b - gray) * saturation);
 }
 
 #endif // COLOR_H
