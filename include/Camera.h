@@ -25,7 +25,7 @@ public:
     // Constructor with parameters
     Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure);
 
-    // Generate a ray from the camera through a viewport pixel
+    // Generate a ray from the camera through the viewport at the specified pixel coordinates
     Ray generateRay(float pixelX, float pixelY) const;
 
     // Method to update resolution and recompute directional vectors

@@ -1,13 +1,14 @@
-// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
 #include <algorithm>
 #include <omp.h>
 #include <chrono>
-#include <cmath> // Include for std::pow
+#include <cmath>
 
-Raytracer::Raytracer(int width, int height) : image(width, height)
+Raytracer::Raytracer(int width, int height, int samplesPerPixel)
+    : image(width, height), samplesPerPixel(samplesPerPixel),
+      rng(std::random_device{}()), distribution(0.0f, 1.0f)
 {
     // Initialization if necessary
 }
@@ -32,16 +33,38 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     float baseEV = 1.2f;                                     // Exposure offset to ensure sufficient brightness
     float exposureScale = std::pow(2.0f, exposure + baseEV); // Adjusted scaling
 
+    // Debug: Print samplesPerPixel
+    std::cout << "Samples per pixel: " << samplesPerPixel << std::endl;
+
     // Iterate over each pixel with OpenMP parallelization
 #pragma omp parallel for schedule(dynamic) shared(image)
     for (int y = 0; y < height; ++y)
     {
+        // Initialize a local random number generator for each thread
+        std::mt19937 local_rng(rng());
+        std::uniform_real_distribution<float> local_distribution(0.0f, 1.0f);
+
         for (int x = 0; x < width; ++x)
         {
-            Ray ray = camera.generateRay(static_cast<float>(x), static_cast<float>(y));
+            Color pixelColor(0.0f, 0.0f, 0.0f);
 
-            // Trace the ray and compute the color
-            Color color = trace(ray, scene, shader, 0);
+            for (int s = 0; s < samplesPerPixel; ++s)
+            {
+                // Generate random offsets within the pixel
+                float u = (static_cast<float>(x) + local_distribution(local_rng)) / width;
+                float v = (static_cast<float>(y) + local_distribution(local_rng)) / height;
+
+                // Generate the ray with jittered coordinates
+                Ray ray = camera.generateRay(u * width, v * height);
+
+                // Trace the ray and compute the color
+                Color color = trace(ray, scene, shader, 0);
+
+                pixelColor += color;
+            }
+
+            // Average the color by the number of samples
+            pixelColor /= static_cast<float>(samplesPerPixel);
 
             if (isBinaryMode)
             {
@@ -51,18 +74,18 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             else
             {
                 // Apply exposure adjustment using the adjusted exposure scale
-                color *= exposureScale;
+                pixelColor *= exposureScale;
 
                 // Apply simple linear tone mapping: clamp to [0, 1]
-                color = color.clamp(0.0f, 1.0f);
+                pixelColor = pixelColor.clamp(0.0f, 1.0f);
 
                 // Optionally, apply gamma correction for display purposes
                 // Uncomment the following line if your display expects gamma-corrected colors
-                // color = color.gammaCorrect(2.2f);
+                // pixelColor = pixelColor.gammaCorrect(2.2f);
             }
 
             // Set the pixel color (assumes thread-safe)
-            image.setPixel(x, y, color);
+            image.setPixel(x, y, pixelColor);
         }
 
         // Calculate and display progress every 100 lines or on the last line

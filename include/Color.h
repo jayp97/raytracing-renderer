@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iostream>
 #include <cmath>
+#include <stdexcept>
 
 struct Color
 {
@@ -21,6 +22,9 @@ struct Color
     Color operator*(const Color &other) const;
     Color operator/(float scalar) const;
     Color operator/(const Color &other) const;
+
+    // Compound assignment operator for division by float
+    Color &operator/=(float scalar);
 
     // Clamp method
     Color clamp(float minVal, float maxVal) const;
@@ -66,6 +70,9 @@ inline Color Color::operator*(const Color &other) const
 // Scalar division
 inline Color Color::operator/(float scalar) const
 {
+    if (scalar == 0.0f)
+        throw std::runtime_error("Division by zero in Color::operator/");
+
     return Color(r / scalar, g / scalar, b / scalar);
 }
 
@@ -73,6 +80,18 @@ inline Color Color::operator/(float scalar) const
 inline Color Color::operator/(const Color &other) const
 {
     return Color(r / other.r, g / other.g, b / other.b);
+}
+
+// Compound assignment operator for division by float
+inline Color &Color::operator/=(float scalar)
+{
+    if (scalar == 0.0f)
+        throw std::runtime_error("Division by zero in Color::operator/=");
+
+    r /= scalar;
+    g /= scalar;
+    b /= scalar;
+    return *this;
 }
 
 // Clamp color components between min and max

@@ -937,8 +937,10 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     // Start timing
     auto startTime = std::chrono::steady_clock::now();
 
-    // Retrieve exposure from camera
+    // Retrieve exposure from camera and calculate exposure scale with baseEV offset
     float exposure = camera.exposure;
+    float baseEV = 1.2f;                                     // Exposure offset to ensure sufficient brightness
+    float exposureScale = std::pow(2.0f, exposure + baseEV); // Adjusted scaling
 
     // Iterate over each pixel with OpenMP parallelization
 #pragma omp parallel for schedule(dynamic) shared(image)
@@ -958,21 +960,15 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             }
             else
             {
-                // Apply exposure adjustment using exposure value as EV (Exposure Value)
-                // Using pow(2.0f, exposure) to scale brightness appropriately
-                color *= std::pow(2.0f, exposure);
+                // Apply exposure adjustment using the adjusted exposure scale
+                color *= exposureScale;
 
-                // Apply filmic tone mapping
-                color = color.toneMap();
-
-                // Optionally adjust saturation (set to 1.2 for increased saturation)
-                color = color.adjustSaturation(1.2f); // Increase saturation by 20%
-
-                // Apply gamma correction
-                color = color.gammaCorrect(2.2f);
-
-                // Clamp color between 0 and 1
+                // Apply simple linear tone mapping: clamp to [0, 1]
                 color = color.clamp(0.0f, 1.0f);
+
+                // Optionally, apply gamma correction for display purposes
+                // Uncomment the following line if your display expects gamma-corrected colors
+                // color = color.gammaCorrect(2.2f);
             }
 
             // Set the pixel color (assumes thread-safe)
@@ -1237,9 +1233,9 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         float spec = std::pow(specAngle, hit.material.specularExponent);
         Color specular = hit.material.specularColor * hit.material.ks * spec;
 
-        // Adjusted attenuation to prevent excessive darkening
-        // Using a linear + quadratic attenuation model
-        float attenuation = 1.0f / (1.0f + 0.7f * lightDistance + 1.8f * lightDistance * lightDistance);
+        // Adjusted attenuation to balance brightness
+        // Example: Inverse square law with a slight bias
+        float attenuation = 1.0f / (lightDistance * lightDistance + 1.0f);
 
         // Multiply by light intensity
         Color lightIntensity = light.getIntensity();
@@ -1248,7 +1244,7 @@ Color BlinnPhongShader::shade(const Intersection &hit) const
         finalColor += (diffuse + specular) * lightIntensity * attenuation;
     }
 
-    // Do not clamp here; allow high dynamic range values
+    // Do not clamp here; allow high dynamic range values for accurate linear processing
     return finalColor;
 }
 
@@ -1950,7 +1946,6 @@ public:
 
 #endif // MATERIAL_H
 
-// Color.h
 #ifndef COLOR_H
 #define COLOR_H
 
@@ -1972,18 +1967,14 @@ struct Color
     Color operator*(float scalar) const;
     Color &operator*=(float scalar);
     Color operator*(const Color &other) const;
+    Color operator/(float scalar) const;
+    Color operator/(const Color &other) const;
 
     // Clamp method
     Color clamp(float minVal, float maxVal) const;
 
-    // Tone mapping using Filmic operator
-    Color toneMap() const;
-
     // Gamma correction
     Color gammaCorrect(float gamma) const;
-
-    // Adjust saturation
-    Color adjustSaturation(float saturation) const;
 };
 
 // Addition
@@ -2020,6 +2011,18 @@ inline Color Color::operator*(const Color &other) const
     return Color(r * other.r, g * other.g, b * other.b);
 }
 
+// Scalar division
+inline Color Color::operator/(float scalar) const
+{
+    return Color(r / scalar, g / scalar, b / scalar);
+}
+
+// Element-wise division
+inline Color Color::operator/(const Color &other) const
+{
+    return Color(r / other.r, g / other.g, b / other.b);
+}
+
 // Clamp color components between min and max
 inline Color Color::clamp(float minVal, float maxVal) const
 {
@@ -2027,26 +2030,6 @@ inline Color Color::clamp(float minVal, float maxVal) const
         std::max(minVal, std::min(r, maxVal)),
         std::max(minVal, std::min(g, maxVal)),
         std::max(minVal, std::min(b, maxVal)));
-}
-
-// Filmic tone mapping operator (Uncharted 2)
-inline Color Color::toneMap() const
-{
-    auto Uncharted2Tonemap = [](float x) -> float
-    {
-        const float A = 0.15f;
-        const float B = 0.50f;
-        const float C = 0.10f;
-        const float D = 0.20f;
-        const float E = 0.02f;
-        const float F = 0.30f;
-        return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
-    };
-
-    return Color(
-        Uncharted2Tonemap(r),
-        Uncharted2Tonemap(g),
-        Uncharted2Tonemap(b));
 }
 
 // Gamma correction
@@ -2057,17 +2040,6 @@ inline Color Color::gammaCorrect(float gamma) const
         std::pow(std::max(r, 0.0f), invGamma),
         std::pow(std::max(g, 0.0f), invGamma),
         std::pow(std::max(b, 0.0f), invGamma));
-}
-
-// Adjust saturation
-inline Color Color::adjustSaturation(float saturation) const
-{
-    // Convert to grayscale using luminosity method
-    float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-    return Color(
-        gray + (r - gray) * saturation,
-        gray + (g - gray) * saturation,
-        gray + (b - gray) * saturation);
 }
 
 #endif // COLOR_H
@@ -2484,7 +2456,7 @@ scene.json
     "lookAt": [0.0, 0.35, 1.0],
     "upVector": [0.0, 1.0, 0.0],
     "fov": 45.0,
-    "exposure": 1.5
+    "exposure": 0.1
   },
   "scene": {
     "backgroundcolor": [0.25, 0.25, 0.25],
@@ -2608,7 +2580,7 @@ scene.json
 scene_texture.json
 {
   "nbounces": 8,
-  "rendermode": "binary",
+  "rendermode": "phong",
   "camera": {
     "type": "pinhole",
     "width": 1200,
@@ -2773,6 +2745,32 @@ scene_texture.json
             "color1": [0.8, 0.5, 0.5],
             "color2": [0.4, 0.25, 0.25],
             "scale": 10.0
+          }
+        }
+      },
+      {
+        "type": "triangle",
+        "v0": [-0.8, 0.0, 1.2],
+        "v1": [0.8, 0.0, 1.2],
+        "v2": [0.0, 1.5, 1.2],
+        "uv0": [0.0, 0.0],
+        "uv1": [1.0, 0.0],
+        "uv2": [0.0, 1.0],
+        "material": {
+          "ks": 0.3,
+          "kd": 0.9,
+          "specularexponent": 2,
+          "diffusecolor": [0.8, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0,
+          "texture": {
+            "type": "checkerboard",
+            "color1": [0.8, 0.5, 0.8],
+            "color2": [0.2, 0.1, 0.2],
+            "scale": 5.0
           }
         }
       }

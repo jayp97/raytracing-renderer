@@ -31,7 +31,5 @@ Ray Camera::generateRay(float pixelX, float pixelY) const
     Vector3 direction = (forward + right * x + up * y).normalise();
 
     Ray ray(position, direction);
-    // std::cout << "Generated Ray Origin: (" << ray.origin.x << ", " << ray.origin.y << ", " << ray.origin.z << ") "
-    //           << "Direction: (" << ray.direction.x << ", " << ray.direction.y << ", " << ray.direction.z << ")\n";
     return ray;
 }

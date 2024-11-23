@@ -20,6 +20,7 @@
 #include "Scene.h"
 #include "Image.h"
 #include <string>
+#include <random>
 
 // Forward declaration to avoid circular dependency
 class BlinnPhongShader;
@@ -28,7 +29,7 @@ class Raytracer
 {
 public:
     // Constructor with width and height
-    Raytracer(int width, int height);
+    Raytracer(int width, int height, int samplesPerPixel = 1);
 
     // Render the scene and save the output image
     void render(const Scene &scene, const std::string &outputFilename);
@@ -43,6 +44,9 @@ public:
 
 private:
     Image image;
+    int samplesPerPixel;                                        // Number of samples per pixel for antialiasing
+    mutable std::mt19937 rng;                                   // Random number generator
+    mutable std::uniform_real_distribution<float> distribution; // Uniform distribution [0, 1)
 };
 
 #endif // RAYTRACER_H
