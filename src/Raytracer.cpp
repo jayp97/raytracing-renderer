@@ -54,8 +54,12 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
                 float u = (static_cast<float>(x) + local_distribution(local_rng)) / width;
                 float v = (static_cast<float>(y) + local_distribution(local_rng)) / height;
 
-                // Generate the ray with jittered coordinates
-                Ray ray = camera.generateRay(u * width, v * height);
+                // Generate random numbers for lens sampling
+                float r1 = local_distribution(local_rng);
+                float r2 = local_distribution(local_rng);
+
+                // Generate the ray with jittered coordinates and lens sampling
+                Ray ray = camera.generateRay(u * width, v * height, r1, r2);
 
                 // Trace the ray and compute the color
                 Color color = trace(ray, scene, shader, 0);

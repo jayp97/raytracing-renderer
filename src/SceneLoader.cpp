@@ -9,20 +9,6 @@
 #include <fstream>
 #include <iostream>
 
-// Function to align any vector to Y-axis (simplified)
-Vector3 alignToYAxis(const Vector3 &)
-{
-    // For simplicity, set the axis to Y-axis directly
-    return Vector3(0.0f, 1.0f, 0.0f);
-}
-
-// Function to rotate a vector to align with the Y-axis
-Vector3 rotateToYAxis(const Vector3 &)
-{
-    // For simplicity, return Y-axis directly
-    return Vector3(0.0f, 1.0f, 0.0f);
-}
-
 // Loads the entire scene from a JSON file and populates the Scene object
 bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
 {
@@ -90,7 +76,6 @@ bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
             auto obj = loadObject(shape);
             if (obj)
             {
-                // Removed the automatic axis alignment for cylinders
                 scene.addObject(obj);
             }
         }
@@ -115,7 +100,11 @@ Camera SceneLoader::loadCamera(const json &cameraData)
     int height = cameraData["height"];
     float exposure = cameraData.value("exposure", 1.0f); // Default exposure if not specified
 
-    return Camera(position, lookAt, upVector, fov, width, height, exposure);
+    // New: Read aperture and focaldistance, with default values
+    float aperture = cameraData.value("aperture", 0.0f);
+    float focalDistance = cameraData.value("focaldistance", 1.0f);
+
+    return Camera(position, lookAt, upVector, fov, width, height, exposure, aperture, focalDistance);
 }
 
 // Loads light sources

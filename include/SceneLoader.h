@@ -6,10 +6,10 @@
 #include <string>
 #include <memory>
 #include "nlohmann/json.hpp"
-#include "Scene.h"   // Updated to include Scene
-#include "Light.h"   // Light class
-#include "Color.h"   // Color struct
-#include "Vector3.h" // Vector3 class
+#include "Scene.h"
+#include "Light.h"
+#include "Color.h"
+#include "Vector3.h"
 
 using json = nlohmann::json;
 
@@ -26,8 +26,8 @@ private:
     // Helper methods for loading different components
     Camera loadCamera(const json &cameraData);
     std::shared_ptr<Object> loadObject(const json &shapeData);
-    std::vector<Light> loadLights(const json &lightsData); // Loads light sources
-    Material loadMaterial(const json &materialData);       // Loads material properties
+    std::vector<Light> loadLights(const json &lightsData);
+    Material loadMaterial(const json &materialData);
 };
 
 #endif // SCENELOADER_H

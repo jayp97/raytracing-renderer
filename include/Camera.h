@@ -1,3 +1,4 @@
+// Camera.h
 #ifndef CAMERA_H
 #define CAMERA_H
 
@@ -18,15 +19,18 @@ public:
           aspectRatio(1.0f),
           exposure(1.0f),
           width(800),
-          height(600)
+          height(600),
+          aperture(0.0f),
+          focalDistance(1.0f)
     {
     }
 
     // Constructor with parameters
-    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure);
+    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov,
+           int width, int height, float exposure, float aperture = 0.0f, float focalDistance = 1.0f);
 
     // Generate a ray from the camera through the viewport at the specified pixel coordinates
-    Ray generateRay(float pixelX, float pixelY) const;
+    Ray generateRay(float pixelX, float pixelY, float r1 = 0.0f, float r2 = 0.0f) const;
 
     // Method to update resolution and recompute directional vectors
     void setResolution(int newWidth, int newHeight)
@@ -47,6 +51,14 @@ public:
     float exposure;
     int width;  // Image width
     int height; // Image height
+
+    // New attributes for depth of field
+    float aperture;      // Aperture size (diameter)
+    float focalDistance; // Distance from the camera to the focus plane
+
+private:
+    // Helper function for concentric disk sampling
+    static void concentricSampleDisk(float u1, float u2, float &dx, float &dy);
 };
 
 #endif // CAMERA_H
