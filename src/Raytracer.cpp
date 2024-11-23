@@ -21,6 +21,7 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     image = Image(width, height);
 
     bool isBinaryMode = scene.renderMode == "binary";
+    bool isPathTracerMode = scene.renderMode == "pathtracer";
 
     // Initialize the shader once
     BlinnPhongShader shader(scene, scene.camera.position);
@@ -62,7 +63,28 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
                 Ray ray = camera.generateRay(u * width, v * height, r1, r2);
 
                 // Trace the ray and compute the color
-                Color color = trace(ray, scene, shader, 0);
+                Color color;
+                if (isBinaryMode)
+                {
+                    Intersection hit;
+                    bool hasHit = scene.intersect(ray, hit);
+                    if (hasHit)
+                    {
+                        color = Color(1.0f, 0.0f, 0.0f);
+                    }
+                    else
+                    {
+                        color = scene.backgroundColor;
+                    }
+                }
+                else if (isPathTracerMode)
+                {
+                    color = pathTrace(ray, scene, 0);
+                }
+                else
+                {
+                    color = trace(ray, scene, shader, 0);
+                }
 
                 pixelColor += color;
             }
@@ -120,25 +142,6 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
 
 Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth) const
 {
-    // Check if the render mode is "binary"
-    bool isBinaryMode = scene.renderMode == "binary";
-
-    if (isBinaryMode)
-    {
-        Intersection hit;
-        bool hasHit = scene.intersect(ray, hit);
-        if (hasHit)
-        {
-            // Return fixed color (e.g., red) for any intersection
-            return Color(1.0f, 0.0f, 0.0f);
-        }
-        else
-        {
-            // Return background color if no intersection
-            return scene.backgroundColor;
-        }
-    }
-
     // Existing trace logic for non-binary modes
     if (depth >= scene.nbounces)
         return Color(0, 0, 0); // Base case: no further contribution
@@ -215,6 +218,150 @@ Color Raytracer::trace(const Ray &ray, const Scene &scene, const BlinnPhongShade
         // No intersection; return the scene's background color without tone mapping
         return scene.backgroundColor;
     }
+}
+
+Color Raytracer::pathTrace(const Ray &ray, const Scene &scene, int depth) const
+{
+    if (depth >= scene.nbounces)
+        return Color(0, 0, 0); // Terminate recursion
+
+    Intersection hit;
+    if (scene.intersect(ray, hit))
+    {
+        // Use texture color if available
+        Color materialColor = hit.material.diffuseColor;
+        if (hit.material.texture)
+        {
+            materialColor = hit.material.texture->getColor(hit.u, hit.v);
+        }
+
+        Vector3 normal = hit.normal.normalise();
+
+        // **Direct Lighting (Next Event Estimation)**
+        Color directLighting(0, 0, 0);
+        for (const auto &light : scene.lights)
+        {
+            Vector3 lightDir = (light.getPosition() - hit.point).normalise();
+            float lightDistance = (light.getPosition() - hit.point).length();
+
+            // **Check for shadows**
+            Ray shadowRay(hit.point + normal * 1e-4f, lightDir);
+            Intersection shadowHit;
+            if (scene.intersect(shadowRay, shadowHit) && shadowHit.distance < lightDistance)
+            {
+                continue; // In shadow, skip this light
+            }
+
+            // **Lambertian Reflectance**
+            float NdotL = std::max(normal.dot(lightDir), 0.0f);
+
+            // **Add Light Contribution**
+            Color lightIntensity = light.getIntensity() / (lightDistance * lightDistance);
+            directLighting += materialColor * hit.material.kd * NdotL * lightIntensity;
+        }
+
+        // Russian Roulette for path termination
+        float probability = materialColor.maxComponent();
+        probability = std::clamp(probability, 0.1f, 0.95f);
+
+        float randVal = distribution(rng);
+        if (randVal > probability)
+        {
+            return directLighting;
+        }
+
+        // **Sample Reflection or Refraction Based on Material**
+        Vector3 newDirection;
+        Color brdf;
+        float pdf;
+
+        if (hit.material.isReflective && hit.material.reflectivity > 0.0f)
+        {
+            // **Specular Reflection**
+            newDirection = ray.direction.reflect(normal).normalise();
+            brdf = hit.material.specularColor * hit.material.reflectivity;
+            pdf = 1.0f;
+        }
+        else if (hit.material.isRefractive)
+        {
+            // **Refraction**
+            float eta = hit.material.refractiveIndex;
+            Vector3 n = normal;
+            float cosi = std::clamp(ray.direction.dot(normal), -1.0f, 1.0f);
+            float etai = 1.0f, etat = eta;
+            if (cosi > 0)
+            {
+                std::swap(etai, etat);
+                n = -normal;
+            }
+            float etaRatio = etai / etat;
+            float k = 1 - etaRatio * etaRatio * (1 - cosi * cosi);
+            if (k < 0)
+            {
+                // Total internal reflection
+                newDirection = ray.direction.reflect(n).normalise();
+                brdf = hit.material.specularColor; // For total internal reflection
+            }
+            else
+            {
+                newDirection = ray.direction * etaRatio + n * (etaRatio * cosi - sqrtf(k));
+                newDirection = newDirection.normalise();
+                brdf = Color(1.0f, 1.0f, 1.0f); // Assume white color for refracted ray
+            }
+            pdf = 1.0f;
+        }
+        else
+        {
+            // **Diffuse Reflection**
+            newDirection = sampleHemisphere(normal);
+            float cosine = std::max(newDirection.dot(normal), 0.0f);
+            brdf = materialColor * hit.material.kd * (1.0f / M_PI);
+            pdf = cosine / M_PI;
+        }
+
+        // Create new ray from hit point
+        Ray newRay(hit.point + newDirection * 1e-4f, newDirection);
+
+        // Recursive path tracing
+        Color incomingRadiance = pathTrace(newRay, scene, depth + 1);
+
+        // **Correct Radiance Accumulation**
+        Color indirectLighting = brdf * incomingRadiance * std::abs(newDirection.dot(normal)) / (pdf * probability);
+
+        // **Combine Direct and Indirect Lighting**
+        Color radiance = directLighting + indirectLighting;
+
+        return radiance;
+    }
+    else
+    {
+        // No intersection; return background color
+        return scene.backgroundColor;
+    }
+}
+
+// Helper function to sample a cosine-weighted direction in hemisphere
+Vector3 Raytracer::sampleHemisphere(const Vector3 &normal) const
+{
+    float u1 = distribution(rng);
+    float u2 = distribution(rng);
+
+    float r = sqrt(u1);
+    float theta = 2 * M_PI * u2;
+
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1.0f - u1);
+
+    // Create a coordinate system (normal, tangent, bitangent)
+    Vector3 w = normal;
+    Vector3 u = ((fabs(w.x) > 0.1f ? Vector3(0.0f, 1.0f, 0.0f) : Vector3(1.0f, 0.0f, 0.0f)).cross(w)).normalise();
+    Vector3 v = w.cross(u);
+
+    // Convert sample to world space
+    Vector3 sampleDirection = u * x + v * y + w * z;
+
+    return sampleDirection.normalise();
 }
 
 Color Raytracer::getPixelColor(int x, int y) const

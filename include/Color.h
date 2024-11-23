@@ -31,6 +31,9 @@ struct Color
 
     // Gamma correction
     Color gammaCorrect(float gamma) const;
+
+    // Method to get the maximum component
+    float maxComponent() const;
 };
 
 // Addition
@@ -111,6 +114,12 @@ inline Color Color::gammaCorrect(float gamma) const
         std::pow(std::max(r, 0.0f), invGamma),
         std::pow(std::max(g, 0.0f), invGamma),
         std::pow(std::max(b, 0.0f), invGamma));
+}
+
+// Method to get the maximum component
+inline float Color::maxComponent() const
+{
+    return std::max(r, std::max(g, b));
 }
 
 #endif // COLOR_H

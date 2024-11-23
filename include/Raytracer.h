@@ -37,6 +37,9 @@ public:
     // Trace a ray into the scene and compute the color, supporting recursion for reflections/refractions
     Color trace(const Ray &ray, const Scene &scene, const BlinnPhongShader &shader, int depth = 0) const;
 
+    // Path tracing function for multi-bounce global illumination
+    Color pathTrace(const Ray &ray, const Scene &scene, int depth = 0) const;
+
     // Access the rendered image (for testing purposes)
     Image getImage() const { return image; }
 
@@ -47,6 +50,9 @@ private:
     int samplesPerPixel;                                        // Number of samples per pixel for antialiasing
     mutable std::mt19937 rng;                                   // Random number generator
     mutable std::uniform_real_distribution<float> distribution; // Uniform distribution [0, 1)
+
+    // Helper function to sample a cosine-weighted direction in hemisphere
+    Vector3 sampleHemisphere(const Vector3 &normal) const;
 };
 
 #endif // RAYTRACER_H

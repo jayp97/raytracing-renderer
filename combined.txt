@@ -266,20 +266,6 @@ BoundingBox Cylinder::getBoundingBox() const
 #include <fstream>
 #include <iostream>
 
-// Function to align any vector to Y-axis (simplified)
-Vector3 alignToYAxis(const Vector3 &)
-{
-    // For simplicity, set the axis to Y-axis directly
-    return Vector3(0.0f, 1.0f, 0.0f);
-}
-
-// Function to rotate a vector to align with the Y-axis
-Vector3 rotateToYAxis(const Vector3 &)
-{
-    // For simplicity, return Y-axis directly
-    return Vector3(0.0f, 1.0f, 0.0f);
-}
-
 // Loads the entire scene from a JSON file and populates the Scene object
 bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
 {
@@ -347,7 +333,6 @@ bool SceneLoader::loadScene(const std::string &filePath, Scene &scene)
             auto obj = loadObject(shape);
             if (obj)
             {
-                // Removed the automatic axis alignment for cylinders
                 scene.addObject(obj);
             }
         }
@@ -372,7 +357,11 @@ Camera SceneLoader::loadCamera(const json &cameraData)
     int height = cameraData["height"];
     float exposure = cameraData.value("exposure", 1.0f); // Default exposure if not specified
 
-    return Camera(position, lookAt, upVector, fov, width, height, exposure);
+    // New: Read aperture and focaldistance, with default values
+    float aperture = cameraData.value("aperture", 0.0f);
+    float focalDistance = cameraData.value("focaldistance", 1.0f);
+
+    return Camera(position, lookAt, upVector, fov, width, height, exposure, aperture, focalDistance);
 }
 
 // Loads light sources
@@ -908,16 +897,17 @@ std::ostream &operator<<(std::ostream &os, const Vector3 &v)
     return os;
 }
 
-// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
 #include <iostream>
 #include <algorithm>
 #include <omp.h>
 #include <chrono>
-#include <cmath> // Include for std::pow
+#include <cmath>
 
-Raytracer::Raytracer(int width, int height) : image(width, height)
+Raytracer::Raytracer(int width, int height, int samplesPerPixel)
+    : image(width, height), samplesPerPixel(samplesPerPixel),
+      rng(std::random_device{}()), distribution(0.0f, 1.0f)
 {
     // Initialization if necessary
 }
@@ -942,16 +932,42 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     float baseEV = 1.2f;                                     // Exposure offset to ensure sufficient brightness
     float exposureScale = std::pow(2.0f, exposure + baseEV); // Adjusted scaling
 
+    // Debug: Print samplesPerPixel
+    std::cout << "Samples per pixel: " << samplesPerPixel << std::endl;
+
     // Iterate over each pixel with OpenMP parallelization
 #pragma omp parallel for schedule(dynamic) shared(image)
     for (int y = 0; y < height; ++y)
     {
+        // Initialize a local random number generator for each thread
+        std::mt19937 local_rng(rng());
+        std::uniform_real_distribution<float> local_distribution(0.0f, 1.0f);
+
         for (int x = 0; x < width; ++x)
         {
-            Ray ray = camera.generateRay(static_cast<float>(x), static_cast<float>(y));
+            Color pixelColor(0.0f, 0.0f, 0.0f);
 
-            // Trace the ray and compute the color
-            Color color = trace(ray, scene, shader, 0);
+            for (int s = 0; s < samplesPerPixel; ++s)
+            {
+                // Generate random offsets within the pixel
+                float u = (static_cast<float>(x) + local_distribution(local_rng)) / width;
+                float v = (static_cast<float>(y) + local_distribution(local_rng)) / height;
+
+                // Generate random numbers for lens sampling
+                float r1 = local_distribution(local_rng);
+                float r2 = local_distribution(local_rng);
+
+                // Generate the ray with jittered coordinates and lens sampling
+                Ray ray = camera.generateRay(u * width, v * height, r1, r2);
+
+                // Trace the ray and compute the color
+                Color color = trace(ray, scene, shader, 0);
+
+                pixelColor += color;
+            }
+
+            // Average the color by the number of samples
+            pixelColor /= static_cast<float>(samplesPerPixel);
 
             if (isBinaryMode)
             {
@@ -961,18 +977,18 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
             else
             {
                 // Apply exposure adjustment using the adjusted exposure scale
-                color *= exposureScale;
+                pixelColor *= exposureScale;
 
                 // Apply simple linear tone mapping: clamp to [0, 1]
-                color = color.clamp(0.0f, 1.0f);
+                pixelColor = pixelColor.clamp(0.0f, 1.0f);
 
                 // Optionally, apply gamma correction for display purposes
                 // Uncomment the following line if your display expects gamma-corrected colors
-                // color = color.gammaCorrect(2.2f);
+                // pixelColor = pixelColor.gammaCorrect(2.2f);
             }
 
             // Set the pixel color (assumes thread-safe)
-            image.setPixel(x, y, color);
+            image.setPixel(x, y, pixelColor);
         }
 
         // Calculate and display progress every 100 lines or on the last line
@@ -1105,12 +1121,15 @@ Color Raytracer::getPixelColor(int x, int y) const
     return image.getPixel(x, y);
 }
 
+// Camera.cpp
 #include "Camera.h"
 #include <cmath>
 #include <iostream>
 
-Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure)
-    : position(position), lookAt(lookAt), exposure(exposure), width(width), height(height)
+Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov,
+               int width, int height, float exposure, float aperture, float focalDistance)
+    : position(position), lookAt(lookAt), exposure(exposure), width(width), height(height),
+      aperture(aperture), focalDistance(focalDistance)
 {
     // Calculate aspect ratio from width and height
     aspectRatio = static_cast<float>(width) / height;
@@ -1125,7 +1144,7 @@ Camera::Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up
 }
 
 // Generate a ray from the camera through the viewport at the specified pixel coordinates
-Ray Camera::generateRay(float pixelX, float pixelY) const
+Ray Camera::generateRay(float pixelX, float pixelY, float r1, float r2) const
 {
     // Calculate the viewport scaling based on the FOV
     float scale = std::tan(fov / 2.0f);
@@ -1137,10 +1156,62 @@ Ray Camera::generateRay(float pixelX, float pixelY) const
     // Calculate the direction of the ray through the pixel
     Vector3 direction = (forward + right * x + up * y).normalise();
 
-    Ray ray(position, direction);
-    // std::cout << "Generated Ray Origin: (" << ray.origin.x << ", " << ray.origin.y << ", " << ray.origin.z << ") "
-    //           << "Direction: (" << ray.direction.x << ", " << ray.direction.y << ", " << ray.direction.z << ")\n";
-    return ray;
+    if (aperture > 0.0f)
+    {
+        // Compute the focus point at the focal distance along the ray direction
+        Vector3 focusPoint = position + direction * focalDistance;
+
+        // Sample a point on the lens (disk) centered at the camera position
+        float lensRadius = aperture / 2.0f;
+
+        // Map random numbers to disk using concentric disk sampling
+        float lensU, lensV;
+        concentricSampleDisk(r1, r2, lensU, lensV);
+        lensU *= lensRadius;
+        lensV *= lensRadius;
+
+        // Compute the offset lens point
+        Vector3 lensPoint = position + right * lensU + up * lensV;
+
+        // Generate new ray direction from lens point to focus point
+        Vector3 newDirection = (focusPoint - lensPoint).normalise();
+
+        return Ray(lensPoint, newDirection);
+    }
+    else
+    {
+        // Generate ray as before
+        return Ray(position, direction);
+    }
+}
+
+// Helper function for concentric disk sampling
+void Camera::concentricSampleDisk(float u1, float u2, float &dx, float &dy)
+{
+    float r, theta;
+    float sx = 2 * u1 - 1;
+    float sy = 2 * u2 - 1;
+
+    if (sx == 0.0f && sy == 0.0f)
+    {
+        dx = 0.0f;
+        dy = 0.0f;
+        return;
+    }
+
+    if (std::abs(sx) > std::abs(sy))
+    {
+        r = sx;
+        theta = (M_PI / 4.0f) * (sy / sx);
+    }
+    else
+    {
+        r = sy;
+        theta = (M_PI / 2.0f) - (M_PI / 4.0f) * (sx / sy);
+    }
+
+    dx = r * std::cos(theta);
+    dy = r * std::sin(theta);
 }
 
 #include "Light.h"
@@ -1567,9 +1638,10 @@ bool Plane::intersect(const Ray &ray, Intersection &hit) const
 #include <vector>
 #include <string>
 #include <chrono>
+#include <sstream>
 
 // Function to render a single scene
-void renderScene(const std::string &inputJson, const std::string &outputPpm)
+void renderScene(const std::string &inputJson, const std::string &outputPpm, int samplesPerPixel)
 {
     SceneLoader loader;
     Scene scene;
@@ -1588,8 +1660,8 @@ void renderScene(const std::string &inputJson, const std::string &outputPpm)
     // Build the Bounding Volume Hierarchy (BVH) for the scene
     scene.buildBVH();
 
-    // Initialize Raytracer with the camera's resolution
-    Raytracer raytracer(scene.camera.width, scene.camera.height);
+    // Initialize Raytracer with the camera's resolution and samples per pixel
+    Raytracer raytracer(scene.camera.width, scene.camera.height, samplesPerPixel);
 
     // Render the scene and save the output PPM file
     raytracer.render(scene, outputPpm);
@@ -1597,19 +1669,61 @@ void renderScene(const std::string &inputJson, const std::string &outputPpm)
 
 int main(int argc, char *argv[])
 {
-    // Check for at least one scene file
-    if (argc < 3 || argc % 2 != 1)
+    // Minimum 3 arguments: program, input, output
+    if (argc < 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <input_json1> <output_ppm1> [<input_json2> <output_ppm2> ...]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " [--spp <samples_per_pixel>] <input_json1> <output_ppm1> [<input_json2> <output_ppm2> ...]" << std::endl;
         return 1;
     }
 
-    // Process each pair of input JSON and output PPM
-    for (int i = 1; i < argc; i += 2)
+    int samplesPerPixel = 1; // Default value
+    std::vector<std::pair<std::string, std::string>> scenes;
+
+    // Parse command-line arguments
+    for (int i = 1; i < argc;)
     {
-        std::string inputJson = argv[i];
-        std::string outputPpm = argv[i + 1];
-        renderScene(inputJson, outputPpm);
+        std::string arg = argv[i];
+        if (arg == "--spp")
+        {
+            if (i + 1 >= argc)
+            {
+                std::cerr << "Error: --spp requires a numerical value." << std::endl;
+                return 1;
+            }
+            try
+            {
+                samplesPerPixel = std::stoi(argv[i + 1]);
+                if (samplesPerPixel < 1)
+                {
+                    std::cerr << "Samples per pixel must be at least 1. Using default value of 1." << std::endl;
+                    samplesPerPixel = 1;
+                }
+            }
+            catch (const std::invalid_argument &)
+            {
+                std::cerr << "Invalid value for samples per pixel. Using default value of 1." << std::endl;
+                samplesPerPixel = 1;
+            }
+            i += 2;
+        }
+        else
+        {
+            if (i + 1 >= argc)
+            {
+                std::cerr << "Error: Missing output file for input " << arg << std::endl;
+                return 1;
+            }
+            std::string inputJson = argv[i];
+            std::string outputPpm = argv[i + 1];
+            scenes.emplace_back(inputJson, outputPpm);
+            i += 2;
+        }
+    }
+
+    // Render all scenes
+    for (const auto &scenePair : scenes)
+    {
+        renderScene(scenePair.first, scenePair.second, samplesPerPixel);
     }
 
     std::cout << "All scenes have been processed." << std::endl;
@@ -1740,6 +1854,7 @@ private:
 
 #endif // BOUNDING_BOX_H
 
+// Camera.h
 #ifndef CAMERA_H
 #define CAMERA_H
 
@@ -1760,15 +1875,18 @@ public:
           aspectRatio(1.0f),
           exposure(1.0f),
           width(800),
-          height(600)
+          height(600),
+          aperture(0.0f),
+          focalDistance(1.0f)
     {
     }
 
     // Constructor with parameters
-    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov, int width, int height, float exposure);
+    Camera(const Vector3 &position, const Vector3 &lookAt, const Vector3 &up, float fov,
+           int width, int height, float exposure, float aperture = 0.0f, float focalDistance = 1.0f);
 
-    // Generate a ray from the camera through a viewport pixel
-    Ray generateRay(float pixelX, float pixelY) const;
+    // Generate a ray from the camera through the viewport at the specified pixel coordinates
+    Ray generateRay(float pixelX, float pixelY, float r1 = 0.0f, float r2 = 0.0f) const;
 
     // Method to update resolution and recompute directional vectors
     void setResolution(int newWidth, int newHeight)
@@ -1789,6 +1907,14 @@ public:
     float exposure;
     int width;  // Image width
     int height; // Image height
+
+    // New attributes for depth of field
+    float aperture;      // Aperture size (diameter)
+    float focalDistance; // Distance from the camera to the focus plane
+
+private:
+    // Helper function for concentric disk sampling
+    static void concentricSampleDisk(float u1, float u2, float &dx, float &dy);
 };
 
 #endif // CAMERA_H
@@ -1837,10 +1963,10 @@ private:
 #include <string>
 #include <memory>
 #include "nlohmann/json.hpp"
-#include "Scene.h"   // Updated to include Scene
-#include "Light.h"   // Light class
-#include "Color.h"   // Color struct
-#include "Vector3.h" // Vector3 class
+#include "Scene.h"
+#include "Light.h"
+#include "Color.h"
+#include "Vector3.h"
 
 using json = nlohmann::json;
 
@@ -1857,8 +1983,8 @@ private:
     // Helper methods for loading different components
     Camera loadCamera(const json &cameraData);
     std::shared_ptr<Object> loadObject(const json &shapeData);
-    std::vector<Light> loadLights(const json &lightsData); // Loads light sources
-    Material loadMaterial(const json &materialData);       // Loads material properties
+    std::vector<Light> loadLights(const json &lightsData);
+    Material loadMaterial(const json &materialData);
 };
 
 #endif // SCENELOADER_H
@@ -1952,6 +2078,7 @@ public:
 #include <algorithm>
 #include <iostream>
 #include <cmath>
+#include <stdexcept>
 
 struct Color
 {
@@ -1969,6 +2096,9 @@ struct Color
     Color operator*(const Color &other) const;
     Color operator/(float scalar) const;
     Color operator/(const Color &other) const;
+
+    // Compound assignment operator for division by float
+    Color &operator/=(float scalar);
 
     // Clamp method
     Color clamp(float minVal, float maxVal) const;
@@ -2014,6 +2144,9 @@ inline Color Color::operator*(const Color &other) const
 // Scalar division
 inline Color Color::operator/(float scalar) const
 {
+    if (scalar == 0.0f)
+        throw std::runtime_error("Division by zero in Color::operator/");
+
     return Color(r / scalar, g / scalar, b / scalar);
 }
 
@@ -2021,6 +2154,18 @@ inline Color Color::operator/(float scalar) const
 inline Color Color::operator/(const Color &other) const
 {
     return Color(r / other.r, g / other.g, b / other.b);
+}
+
+// Compound assignment operator for division by float
+inline Color &Color::operator/=(float scalar)
+{
+    if (scalar == 0.0f)
+        throw std::runtime_error("Division by zero in Color::operator/=");
+
+    r /= scalar;
+    g /= scalar;
+    b /= scalar;
+    return *this;
 }
 
 // Clamp color components between min and max
@@ -2247,6 +2392,7 @@ private:
 #include "Scene.h"
 #include "Image.h"
 #include <string>
+#include <random>
 
 // Forward declaration to avoid circular dependency
 class BlinnPhongShader;
@@ -2255,7 +2401,7 @@ class Raytracer
 {
 public:
     // Constructor with width and height
-    Raytracer(int width, int height);
+    Raytracer(int width, int height, int samplesPerPixel = 1);
 
     // Render the scene and save the output image
     void render(const Scene &scene, const std::string &outputFilename);
@@ -2270,6 +2416,9 @@ public:
 
 private:
     Image image;
+    int samplesPerPixel;                                        // Number of samples per pixel for antialiasing
+    mutable std::mt19937 rng;                                   // Random number generator
+    mutable std::uniform_real_distribution<float> distribution; // Uniform distribution [0, 1)
 };
 
 #endif // RAYTRACER_H
@@ -2442,6 +2591,141 @@ binary_primitives.json
                 }  
             ] 
         } 
+}
+
+scene_defocus.json
+{
+  "nbounces": 8,
+  "rendermode": "phong",
+  "camera": {
+    "type": "pinhole",
+    "width": 1200,
+    "height": 800,
+    "position": [0.0, 0.75, -0.25],
+    "lookAt": [0.0, 0.35, 1.0],
+    "upVector": [0.0, 1.0, 0.0],
+    "fov": 45.0,
+    "exposure": 0.1,
+    "aperture": 0.1,
+    "focaldistance": 1.5
+  },
+  "scene": {
+    "backgroundcolor": [0.25, 0.25, 0.25],
+    "lightsources": [
+      {
+        "type": "pointlight",
+        "position": [0, 1.0, 0.5],
+        "intensity": [0.5, 0.5, 0.5]
+      },
+      {
+        "type": "pointlight",
+        "position": [0, 1.0, -0.5],
+        "intensity": [0.5, 0.5, 0.5]
+      }
+    ],
+    "shapes": [
+      {
+        "type": "sphere",
+        "center": [0, -25.0, 0],
+        "radius": 25.1,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 10,
+          "diffusecolor": [0.5, 1, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "cylinder",
+        "center": [-0.3, 0.19, 1],
+        "axis": [0, 1, 0],
+        "radius": 0.15,
+        "height": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.5, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "triangle",
+        "v0": [0, 0.0, 2.25],
+        "v1": [0.75, 0.0, 2],
+        "v2": [0, 0.75, 2.25],
+        "material": {
+          "ks": 0.3,
+          "kd": 0.9,
+          "specularexponent": 2,
+          "diffusecolor": [0.8, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "triangle",
+        "v0": [0.75, 0.75, 2],
+        "v1": [0.75, 0.0, 2],
+        "v2": [0, 0.75, 2.25],
+        "material": {
+          "ks": 0.3,
+          "kd": 0.9,
+          "specularexponent": 2,
+          "diffusecolor": [0.8, 0.5, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "sphere",
+        "center": [-0.3, 0.59, 1],
+        "radius": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.8, 0.5, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": false,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "sphere",
+        "center": [0.3, 0.29, 1],
+        "radius": 0.2,
+        "material": {
+          "ks": 0.1,
+          "kd": 0.9,
+          "specularexponent": 20,
+          "diffusecolor": [0.8, 0.5, 0.5],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 1.0,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      }
+    ]
+  }
 }
 
 scene.json
