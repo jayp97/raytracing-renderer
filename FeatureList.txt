@@ -30,7 +30,7 @@ Demonstrated: Fully
 
 (h) Refraction (5)
 Implemented: Yes
-Demonstrated: No
+Demonstrated: Fully
 
 2. Intermediate Raytracer Features .....................................................15
 
