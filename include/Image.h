@@ -14,6 +14,8 @@ public:
 
     void setPixel(int x, int y, const Color &color);
     Color getPixel(int x, int y) const;
+    int getWidth() const;
+    int getHeight() const;
     bool saveAsPPM(const std::string &filename) const;
 
 private:

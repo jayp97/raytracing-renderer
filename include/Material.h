@@ -5,6 +5,7 @@
 #include "Color.h"
 #include <memory>
 #include "Texture.h"
+#include "BRDF.h" // Include BRDF base class
 
 class Material
 {
@@ -16,7 +17,8 @@ public:
           diffuseColor(1.0f, 1.0f, 1.0f), specularColor(1.0f, 1.0f, 1.0f),
           isReflective(false), reflectivity(0.0f),
           isRefractive(false), refractiveIndex(1.0f),
-          texture(nullptr) {}
+          texture(nullptr),
+          brdf(nullptr) {} // Initialize BRDF to nullptr
 
     // Material properties
     float ks;               // Specular coefficient
@@ -32,6 +34,9 @@ public:
 
     // Texture
     std::shared_ptr<Texture> texture;
+
+    // BRDF
+    std::shared_ptr<BRDF> brdf; // Pointer to a BRDF instance
 };
 
 #endif // MATERIAL_H

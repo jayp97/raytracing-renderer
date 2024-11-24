@@ -48,3 +48,13 @@ bool Image::saveAsPPM(const std::string &filename) const
     file.close();
     return true;
 }
+
+int Image::getWidth() const
+{
+    return width;
+}
+
+int Image::getHeight() const
+{
+    return height;
+}

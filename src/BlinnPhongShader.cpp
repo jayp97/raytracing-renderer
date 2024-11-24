@@ -1,7 +1,9 @@
+// BlinnPhongShader.cpp
 #include "BlinnPhongShader.h"
 #include "Ray.h"
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 BlinnPhongShader::BlinnPhongShader(const Scene &scene, const Vector3 &cameraPos)
     : scene(scene), cameraPosition(cameraPos) {}

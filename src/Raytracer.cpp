@@ -1,5 +1,7 @@
+// Raytracer.cpp
 #include "Raytracer.h"
 #include "BlinnPhongShader.h"
+#include "MicrofacetBRDF.h" // Include MicrofacetBRDF
 #include <iostream>
 #include <algorithm>
 #include <omp.h>
@@ -23,7 +25,7 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
     bool isBinaryMode = scene.renderMode == "binary";
     bool isPathTracerMode = scene.renderMode == "pathtracer";
 
-    // Initialize the shader once
+    // Initialize the shader once (can be omitted if using BRDF-based shading)
     BlinnPhongShader shader(scene, scene.camera.position);
 
     // Start timing
@@ -83,6 +85,7 @@ void Raytracer::render(const Scene &scene, const std::string &outputFilename)
                 }
                 else
                 {
+                    // **Changed Part: Use the trace method for Phong rendering**
                     color = trace(ray, scene, shader, 0);
                 }
 
@@ -237,28 +240,52 @@ Color Raytracer::pathTrace(const Ray &ray, const Scene &scene, int depth) const
 
         Vector3 normal = hit.normal.normalise();
 
+        // Initialize the accumulated radiance
+        Color L(0.0f, 0.0f, 0.0f);
+
         // **Direct Lighting (Next Event Estimation)**
-        Color directLighting(0, 0, 0);
         for (const auto &light : scene.lights)
         {
-            Vector3 lightDir = (light.getPosition() - hit.point).normalise();
-            float lightDistance = (light.getPosition() - hit.point).length();
+            Vector3 lightDir;
+            float lightDistance;
+            Color lightIntensity;
 
-            // **Check for shadows**
-            Ray shadowRay(hit.point + normal * 1e-4f, lightDir);
-            Intersection shadowHit;
-            if (scene.intersect(shadowRay, shadowHit) && shadowHit.distance < lightDistance)
+            if (light.getType() == LightType::Point)
             {
-                continue; // In shadow, skip this light
+                lightDir = (light.getPosition() - hit.point).normalise();
+                lightDistance = (light.getPosition() - hit.point).length();
+                lightIntensity = light.getIntensity() / (lightDistance * lightDistance);
+            }
+            else if (light.getType() == LightType::Area)
+            {
+                // Sample a point on the area light
+                lightDir = (light.samplePosition(rng, distribution) - hit.point).normalise();
+                lightDistance = (light.samplePosition(rng, distribution) - hit.point).length();
+                lightIntensity = light.getIntensity() / (lightDistance * lightDistance);
+            }
+            else
+            {
+                continue; // Unknown light type
             }
 
-            // **Lambertian Reflectance**
+            // **Shadow Ray**
+            Ray shadowRay(hit.point + normal * 1e-4f, lightDir);
+            Intersection shadowHit;
+            if (scene.intersect(shadowRay, shadowHit))
+            {
+                if (shadowHit.distance < lightDistance)
+                {
+                    continue; // In shadow
+                }
+            }
+
             float NdotL = std::max(normal.dot(lightDir), 0.0f);
 
-            // **Add Light Contribution**
-            Color lightIntensity = light.getIntensity() / (lightDistance * lightDistance);
-            directLighting += materialColor * hit.material.kd * NdotL * lightIntensity;
+            // Add light contribution
+            L += materialColor * hit.material.kd * NdotL * lightIntensity;
         }
+
+        // **Indirect Lighting**
 
         // Russian Roulette for path termination
         float probability = materialColor.maxComponent();
@@ -267,71 +294,53 @@ Color Raytracer::pathTrace(const Ray &ray, const Scene &scene, int depth) const
         float randVal = distribution(rng);
         if (randVal > probability)
         {
-            return directLighting;
+            return L;
         }
 
-        // **Sample Reflection or Refraction Based on Material**
-        Vector3 newDirection;
-        Color brdf;
-        float pdf;
+        // **BRDF Sampling**
+        if (hit.material.brdf)
+        {
+            float pdf_val;
+            Vector3 wi = hit.material.brdf->sample(ray.direction * -1.0f, normal, pdf_val);
 
-        if (hit.material.isReflective && hit.material.reflectivity > 0.0f)
-        {
-            // **Specular Reflection**
-            newDirection = ray.direction.reflect(normal).normalise();
-            brdf = hit.material.specularColor * hit.material.reflectivity;
-            pdf = 1.0f;
-        }
-        else if (hit.material.isRefractive)
-        {
-            // **Refraction**
-            float eta = hit.material.refractiveIndex;
-            Vector3 n = normal;
-            float cosi = std::clamp(ray.direction.dot(normal), -1.0f, 1.0f);
-            float etai = 1.0f, etat = eta;
-            if (cosi > 0)
-            {
-                std::swap(etai, etat);
-                n = -normal;
-            }
-            float etaRatio = etai / etat;
-            float k = 1 - etaRatio * etaRatio * (1 - cosi * cosi);
-            if (k < 0)
-            {
-                // Total internal reflection
-                newDirection = ray.direction.reflect(n).normalise();
-                brdf = hit.material.specularColor; // For total internal reflection
-            }
-            else
-            {
-                newDirection = ray.direction * etaRatio + n * (etaRatio * cosi - sqrtf(k));
-                newDirection = newDirection.normalise();
-                brdf = Color(1.0f, 1.0f, 1.0f); // Assume white color for refracted ray
-            }
-            pdf = 1.0f;
+            if (wi.dot(normal) <= 0.0f)
+                return L;
+
+            // Compute BRDF value
+            Color brdf = hit.material.brdf->evaluate(wi, ray.direction * -1.0f, normal);
+
+            // Create new ray
+            Ray newRay(hit.point + wi * 1e-4f, wi.normalise());
+
+            // Recursive path tracing
+            Color incomingRadiance = pathTrace(newRay, scene, depth + 1);
+
+            // **Radiance Contribution**
+            float cosine = std::max(wi.dot(normal), 0.0f);
+            L += brdf * incomingRadiance * cosine / (pdf_val * probability);
         }
         else
         {
-            // **Diffuse Reflection**
-            newDirection = sampleHemisphere(normal);
-            float cosine = std::max(newDirection.dot(normal), 0.0f);
-            brdf = materialColor * hit.material.kd * (1.0f / M_PI);
-            pdf = cosine / M_PI;
+            // Fallback to Lambertian reflection if BRDF is not defined
+            // Sample a random direction in the hemisphere
+            Vector3 wi = sampleHemisphere(normal);
+            float pdf_val = wi.dot(normal) / static_cast<float>(M_PI);
+
+            // Compute BRDF value (Lambertian)
+            Color brdf = materialColor * hit.material.kd / static_cast<float>(M_PI);
+
+            // Create new ray
+            Ray newRay(hit.point + wi * 1e-4f, wi.normalise());
+
+            // Recursive path tracing
+            Color incomingRadiance = pathTrace(newRay, scene, depth + 1);
+
+            // **Radiance Contribution**
+            float cosine = std::max(wi.dot(normal), 0.0f);
+            L += brdf * incomingRadiance * cosine / (pdf_val * 1.0f); // probability = 1.0f for Lambertian
         }
 
-        // Create new ray from hit point
-        Ray newRay(hit.point + newDirection * 1e-4f, newDirection);
-
-        // Recursive path tracing
-        Color incomingRadiance = pathTrace(newRay, scene, depth + 1);
-
-        // **Correct Radiance Accumulation**
-        Color indirectLighting = brdf * incomingRadiance * std::abs(newDirection.dot(normal)) / (pdf * probability);
-
-        // **Combine Direct and Indirect Lighting**
-        Color radiance = directLighting + indirectLighting;
-
-        return radiance;
+        return L;
     }
     else
     {
@@ -346,12 +355,12 @@ Vector3 Raytracer::sampleHemisphere(const Vector3 &normal) const
     float u1 = distribution(rng);
     float u2 = distribution(rng);
 
-    float r = sqrt(u1);
+    float r = std::sqrt(u1);
     float theta = 2 * M_PI * u2;
 
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    float z = sqrt(1.0f - u1);
+    float x = r * std::cos(theta);
+    float y = r * std::sin(theta);
+    float z = std::sqrt(1.0f - u1);
 
     // Create a coordinate system (normal, tangent, bitangent)
     Vector3 w = normal;

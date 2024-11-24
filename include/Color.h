@@ -1,3 +1,4 @@
+// Color.h
 #ifndef COLOR_H
 #define COLOR_H
 
@@ -17,7 +18,9 @@ struct Color
     // Operator overloads
     Color operator+(const Color &other) const;
     Color &operator+=(const Color &other);
+    Color operator-(const Color &other) const; // Added operator-
     Color operator*(float scalar) const;
+    friend Color operator*(float scalar, const Color &color); // Added operator* for float * Color
     Color &operator*=(float scalar);
     Color operator*(const Color &other) const;
     Color operator/(float scalar) const;
@@ -48,6 +51,12 @@ inline Color &Color::operator+=(const Color &other)
     g += other.g;
     b += other.b;
     return *this;
+}
+
+// Subtraction
+inline Color Color::operator-(const Color &other) const
+{
+    return Color(r - other.r, g - other.g, b - other.b);
 }
 
 // Scalar multiplication
@@ -120,6 +129,12 @@ inline Color Color::gammaCorrect(float gamma) const
 inline float Color::maxComponent() const
 {
     return std::max(r, std::max(g, b));
+}
+
+// Scalar multiplication from the left (float * Color)
+inline Color operator*(float scalar, const Color &color)
+{
+    return Color(color.r * scalar, color.g * scalar, color.b * scalar);
 }
 
 #endif // COLOR_H

@@ -53,9 +53,9 @@ Implemented: Yes
 Demonstrated: Fully
 
 (c) BRDF Sampling (5)
-Implemented: No
+Implemented: Partially
 Demonstrated: N/A
 
 (d) Light Sampling (5)
-Implemented: No
-Demonstrated: N/A
+Implemented: Yes
+Demonstrated: Fully

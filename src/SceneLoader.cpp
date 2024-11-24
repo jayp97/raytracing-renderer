@@ -6,6 +6,7 @@
 #include "Material.h"
 #include "Color.h"
 #include "CheckerboardTexture.h"
+#include "MicrofacetBRDF.h"
 #include <fstream>
 #include <iostream>
 
@@ -122,6 +123,8 @@ Material SceneLoader::loadMaterial(const json &materialData)
     // "reflectivity": float
     // "isrefractive": bool
     // "refractiveindex": float
+    // "brdf": string (e.g., "blinn_phong", "microfacet")
+    // "brdf_params": object (parameters specific to the BRDF)
 
     // Set diffuse color
     if (materialData.contains("diffusecolor") && materialData["diffusecolor"].is_array() && materialData["diffusecolor"].size() == 3)
@@ -218,6 +221,48 @@ Material SceneLoader::loadMaterial(const json &materialData)
     else
     {
         material.refractiveIndex = 1.0f;
+    }
+
+    // Load BRDF
+    if (materialData.contains("brdf"))
+    {
+        std::string brdfType = materialData["brdf"];
+        if (brdfType == "blinn_phong")
+        {
+            // For Blinn-Phong, you can set up a simple BRDF or keep using existing shader
+            // Here, we implement it as a Lambertian BRDF for diffuse and a separate specular term
+            // Alternatively, you can create a BlinnPhongBRDF class
+            // For simplicity, we'll use the base BRDF as Lambertian
+            // You might want to implement BlinnPhongBRDF similarly to MicrofacetBRDF
+
+            // Placeholder: Using LambertianBRDF (needs to be implemented if desired)
+            // material.brdf = std::make_shared<LambertianBRDF>(material.diffuseColor * material.kd);
+
+            // Since Blinn-Phong is handled separately, leave BRDF as nullptr
+            material.brdf = nullptr;
+        }
+        else if (brdfType == "microfacet")
+        {
+            // Load BRDF parameters
+            float roughness = materialData.value("roughness", 0.5f);
+            float F0 = materialData.value("F0", 0.04f); // Default F0 for dielectrics
+
+            // **Updated: Use specularColor instead of diffuseColor for MicrofacetBRDF**
+            // Create a MicrofacetBRDF instance using specularColor
+            material.brdf = std::make_shared<MicrofacetBRDF>(material.specularColor, roughness, F0);
+        }
+        else
+        {
+            std::cerr << "Unknown BRDF type: " << brdfType << ". Using default." << std::endl;
+            material.brdf = nullptr;
+        }
+    }
+    else
+    {
+        // Default BRDF (Lambertian)
+        // You might want to implement and use a LambertianBRDF
+        // For now, set BRDF to nullptr and handle it accordingly
+        material.brdf = nullptr;
     }
 
     return material;
