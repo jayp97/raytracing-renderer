@@ -107,26 +107,6 @@ Camera SceneLoader::loadCamera(const json &cameraData)
     return Camera(position, lookAt, upVector, fov, width, height, exposure, aperture, focalDistance);
 }
 
-// Loads light sources
-std::vector<Light> SceneLoader::loadLights(const json &lightsData)
-{
-    std::vector<Light> lights;
-    for (const auto &light : lightsData)
-    {
-        if (light.contains("position") && light.contains("intensity"))
-        {
-            Vector3 position(light["position"][0], light["position"][1], light["position"][2]);
-            Color intensity(light["intensity"][0], light["intensity"][1], light["intensity"][2]);
-            lights.emplace_back(position, intensity); // Assuming a Light constructor that takes position and intensity
-        }
-        else
-        {
-            std::cerr << "Invalid light source format. Skipping." << std::endl;
-        }
-    }
-    return lights;
-}
-
 // Helper to load material properties
 Material SceneLoader::loadMaterial(const json &materialData)
 {
@@ -327,4 +307,51 @@ std::shared_ptr<Object> SceneLoader::loadObject(const json &shapeData)
         std::cerr << "Unknown shape type: " << type << ". Skipping object." << std::endl;
         return nullptr;
     }
+}
+
+std::vector<Light> SceneLoader::loadLights(const json &lightsData)
+{
+    std::vector<Light> lights;
+    for (const auto &light : lightsData)
+    {
+        if (!light.contains("type"))
+        {
+            std::cerr << "Light type missing. Skipping light." << std::endl;
+            continue;
+        }
+
+        std::string lightType = light["type"];
+        if (lightType == "pointlight")
+        {
+            if (light.contains("position") && light.contains("intensity"))
+            {
+                Vector3 position(light["position"][0], light["position"][1], light["position"][2]);
+                Color intensity(light["intensity"][0], light["intensity"][1], light["intensity"][2]);
+                lights.emplace_back(position, intensity); // Point light
+            }
+            else
+            {
+                std::cerr << "Invalid point light format. Skipping light." << std::endl;
+            }
+        }
+        else if (lightType == "arealight")
+        {
+            if (light.contains("position") && light.contains("intensity") && light.contains("areaRadius"))
+            {
+                Vector3 position(light["position"][0], light["position"][1], light["position"][2]);
+                Color intensity(light["intensity"][0], light["intensity"][1], light["intensity"][2]);
+                float areaRadius = light["areaRadius"];
+                lights.emplace_back(position, intensity, areaRadius); // Area light
+            }
+            else
+            {
+                std::cerr << "Invalid area light format. Skipping light." << std::endl;
+            }
+        }
+        else
+        {
+            std::cerr << "Unknown light type: " << lightType << ". Skipping light." << std::endl;
+        }
+    }
+    return lights;
 }
