@@ -1,0 +1,128 @@
+{
+  "nbounces": 8,
+  "rendermode": "phong",
+  "camera": {
+    "type": "pinhole",
+    "width": 1200,
+    "height": 800,
+    "position": [3.0, 3.0, -5.0],
+    "lookAt": [0.0, 0.0, 0.0],
+    "upVector": [0.0, 1.0, 0.0],
+    "fov": 45.0,
+    "exposure": 0.1
+  },
+  "scene": {
+    "backgroundcolor": [0.1, 0.1, 0.1],
+    "lightsources": [
+      {
+        "type": "pointlight",
+        "position": [5, 5, -5],
+        "intensity": [1.0, 1.0, 1.0]
+      },
+      {
+        "type": "pointlight",
+        "position": [-5, 5, -5],
+        "intensity": [0.7, 0.7, 0.7]
+      }
+    ],
+    "shapes": [
+      {
+        "type": "sphere",
+        "center": [0, -1.0, 0],
+        "radius": 1.0,
+        "material": {
+          "ks": 0.3,
+          "kd": 0.7,
+          "specularexponent": 50,
+          "diffusecolor": [0.2, 0.6, 0.8],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 0.5,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        }
+      },
+      {
+        "type": "mesh",
+        "material": {
+          "ks": 0.2,
+          "kd": 0.8,
+          "specularexponent": 30,
+          "diffusecolor": [0.8, 0.3, 0.3],
+          "specularcolor": [1.0, 1.0, 1.0],
+          "isreflective": true,
+          "reflectivity": 0.3,
+          "isrefractive": false,
+          "refractiveindex": 1.0
+        },
+        "triangles": [
+          {
+            "v0": [-1, -1, 1],
+            "v1": [1, -1, 1],
+            "v2": [1, 1, 1]
+          },
+          {
+            "v0": [-1, -1, 1],
+            "v1": [1, 1, 1],
+            "v2": [-1, 1, 1]
+          },
+
+          {
+            "v0": [-1, -1, -1],
+            "v1": [1, -1, -1],
+            "v2": [1, 1, -1]
+          },
+          {
+            "v0": [-1, -1, -1],
+            "v1": [1, 1, -1],
+            "v2": [-1, 1, -1]
+          },
+
+          {
+            "v0": [-1, -1, -1],
+            "v1": [-1, -1, 1],
+            "v2": [-1, 1, 1]
+          },
+          {
+            "v0": [-1, -1, -1],
+            "v1": [-1, 1, 1],
+            "v2": [-1, 1, -1]
+          },
+
+          {
+            "v0": [1, -1, -1],
+            "v1": [1, -1, 1],
+            "v2": [1, 1, 1]
+          },
+          {
+            "v0": [1, -1, -1],
+            "v1": [1, 1, 1],
+            "v2": [1, 1, -1]
+          },
+
+          {
+            "v0": [-1, 1, -1],
+            "v1": [-1, 1, 1],
+            "v2": [1, 1, 1]
+          },
+          {
+            "v0": [-1, 1, -1],
+            "v1": [1, 1, 1],
+            "v2": [1, 1, -1]
+          },
+
+          {
+            "v0": [-1, -1, -1],
+            "v1": [-1, -1, 1],
+            "v2": [1, -1, 1]
+          },
+          {
+            "v0": [-1, -1, -1],
+            "v1": [1, -1, 1],
+            "v2": [1, -1, -1]
+          }
+        ]
+      }
+    ]
+  }
+}

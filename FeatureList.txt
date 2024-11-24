@@ -1,0 +1,61 @@
+1. Basic Raytracer Features ..............................................................35
+
+(a) Image Writing (3)
+Implemented: Yes
+Demonstrated: Fully
+
+(b) Virtual Pin-Hole Camera (5)
+Implemented: Yes
+Demonstrated: Fully
+
+(c) Intersection Tests (5)
+Implemented: Yes
+Demonstrated: Fully
+
+(d) Blinn-Phong Shading (5)
+Implemented: Yes
+Demonstrated: Fully
+
+(e) Shadows (5)
+Implemented: Yes
+Demonstrated: Fully
+
+(f) Tone Mapping (2)
+Implemented: Yes
+Demonstrated: Fully
+
+(g) Reflection (5)
+Implemented: Yes
+Demonstrated: Fully
+
+(h) Refraction (5)
+Implemented: Yes
+Demonstrated: No
+
+2. Intermediate Raytracer Features .....................................................15
+
+(a) Textures (5)
+Implemented: Yes
+Demonstrated: Fully
+
+(b) Acceleration Hierarchy (10)
+Implemented: Yes
+Demonstrated: Fully
+
+3. Advanced Raytracer Features .........................................................20
+
+(a) Pixel Sampling (5)
+Implemented: Yes
+Demonstrated: Fully
+
+(b) Lens Sampling (5)
+Implemented: Yes
+Demonstrated: Fully
+
+(c) BRDF Sampling (5)
+Implemented: No
+Demonstrated: N/A
+
+(d) Light Sampling (5)
+Implemented: No
+Demonstrated: N/A
