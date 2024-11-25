@@ -1,0 +1,16 @@
+Run 'make' 
+
+then in order to render a scene:
+
+in the scene.json (or any json) file change the render mode to either: binary, phong or pathtracer
+
+then run the following command in the terminal to render a scene
+./bin/raytracer --spp 50 scenes/scene.json scene_phong.ppm
+
+NOTE: the "--spp 50" here represents 50 samples per pixel. This can be changed accordingly.
+
+Other examples could include: 
+./bin/raytracer --spp 50 scenes/binary_primitives.json binary_primitives.ppm
+./bin/raytracer --spp 50 scenes/mirror_image.json mirror_image.ppm
+./bin/raytracer --spp 10000 scenes/brdf/scene.json scene_brdf.ppm
+
